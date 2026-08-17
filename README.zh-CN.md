@@ -26,6 +26,16 @@
 
 DeepSeek Harness(dsh)没有自己的桌面应用,安装要走终端。AIManager 给它补上一个。**点一下鲸鱼,dsh 装好、跑起来、直接开聊**——零终端、零命令、零设置。Claude Desktop 和 Codex(ChatGPT)应用也从同一屏启动。
 
+## 实测截图
+
+启动台——任意图标一键直达:
+
+<img src="assets/screenshot-launchpad.png" width="100%" alt="AIManager 启动台" />
+
+DeepSeek Harness 在 AIManager 里运行:
+
+<img src="assets/screenshot-dsh.png" width="100%" alt="DeepSeek Harness 在 AIManager 内运行" />
+
 ## 交流
 
 欢迎随时提 [issue](https://github.com/liustack/aimanager/issues/new),中英文都行。也欢迎来 X 上聊:**[@liustack](https://x.com/liustack)**——下一个该一键支持哪个 harness、哪里坏了、接下来该做什么,新版本也是那边先发。

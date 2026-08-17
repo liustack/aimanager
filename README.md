@@ -26,6 +26,16 @@
 
 DeepSeek Harness (dsh) has no desktop app of its own and installs through a terminal. AIManager gives it one. **Click the whale, and dsh is installed, running, and ready to chat** — no terminal, no commands, no setup. Claude Desktop and the Codex (ChatGPT) app launch from the same screen.
 
+## Screenshots
+
+The launchpad — one click on any icon:
+
+<img src="assets/screenshot-launchpad.png" width="100%" alt="AIManager launchpad" />
+
+DeepSeek Harness running inside AIManager:
+
+<img src="assets/screenshot-dsh.png" width="100%" alt="DeepSeek Harness running inside AIManager" />
+
 ## Talk to us
 
 Issues are welcome any time: [open one](https://github.com/liustack/aimanager/issues/new), in English or Chinese. And come find me on X: **[@liustack](https://x.com/liustack)** — which harness should get one-click support next, what broke, what should come next. New releases land there first.
