@@ -1,0 +1,28 @@
+# Packaging for release artifacts. Everything ships pre-bundled from
+# electron-vite's out/, so no node_modules go into the app.
+appId: com.liustack.aimanager
+productName: AIManager
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+# All runtime code is bundled by vite; keep node_modules out of the package.
+npmRebuild: false
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.utilities
+  # No signing certificate yet: electron-builder falls back to ad-hoc signing,
+  # which is required for the app to launch on Apple silicon at all.
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: true
+  deleteAppDataOnUninstall: false
+publish:
+  provider: github
+  releaseType: release

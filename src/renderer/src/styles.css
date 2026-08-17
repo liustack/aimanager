@@ -1,0 +1,282 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Obsidian: a near-black monochrome base with one faint sheen falling from
+   the top, film grain to kill banding, and a soft vignette. No color blobs —
+   the tiles are the only color on screen. */
+body {
+  background-color: #0a0a0d;
+  background-image:
+    linear-gradient(180deg, rgba(210, 220, 255, 0.05), rgba(210, 220, 255, 0) 30%),
+    radial-gradient(1300px 800px at 50% -4%, #14141a, #0a0a0d 72%);
+  color: #e8e8ec;
+  user-select: none;
+  /* Title bar is hidden; the whole empty surface moves the window, like a
+     real launcher. Interactive elements opt out below. */
+  -webkit-app-region: drag;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.045;
+  pointer-events: none;
+  z-index: 10;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(1300px 900px at 50% 44%, transparent 58%, rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+}
+
+button {
+  -webkit-app-region: no-drag;
+}
+
+.launchpad {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 36px;
+  max-width: 720px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 128px;
+  padding: 12px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  border-radius: 16px;
+  position: relative;
+  animation: tile-in 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.tile:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.tile:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+.tile:nth-child(4) {
+  animation-delay: 0.15s;
+}
+
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tile:disabled {
+  cursor: default;
+}
+
+.tile-icon {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 10px 28px rgba(0, 0, 0, 0.45);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.tile:hover:not(:disabled) .tile-icon {
+  transform: scale(1.07) translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 16px 36px rgba(0, 0, 0, 0.55);
+}
+
+.tile:active:not(:disabled) .tile-icon {
+  transform: scale(0.96);
+}
+
+.tile-logo {
+  width: 46px;
+  height: 46px;
+}
+
+/* Tile backgrounds mirror each vendor's real app icon. */
+.tone-dsh {
+  background: #ffffff;
+}
+
+.tone-codex {
+  background: #0d0d0d;
+  border: 1px solid #2a2a32;
+}
+
+.tone-claude {
+  background: #262624;
+}
+
+.tile-icon.is-dimmed {
+  opacity: 0.55;
+}
+
+/* App Store-style install overlay */
+.ring-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: inherit;
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.ring-track {
+  stroke: rgba(255, 255, 255, 0.3);
+}
+
+.ring-value {
+  stroke: #ffffff;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 0.25s ease;
+}
+
+.ring.is-spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Hover hint for tiles that will install on click */
+.tile[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #2a2a32;
+  border: 1px solid #3a3a44;
+  color: #d0d0d8;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.tile-name {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #d4d4dc;
+  letter-spacing: 0.01em;
+}
+
+.tile-sub {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #8a8a96;
+  min-height: 14px;
+}
+
+.tile-sub.is-error {
+  color: #e07a7a;
+}
+
+.engine-warning {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #e0b06a;
+}
+
+/* 30px strip above the embedded dsh view, painted inline with dsh's own
+   sampled background color. */
+.dsh-strip {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+}
+
+.strip-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 20px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.strip-more:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.strip-more svg {
+  width: 14px;
+  height: 14px;
+}
+

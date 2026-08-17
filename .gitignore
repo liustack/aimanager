@@ -1,0 +1,8 @@
+.issues/
+# Local-only agent steering and settings.
+.claude/
+.DS_Store
+node_modules/
+out/
+dist/
+.pnpm-store/
