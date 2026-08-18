@@ -51,7 +51,13 @@ DeepSeek Harness 在 AIManager 里运行:
 
 去 [Releases](https://github.com/liustack/aimanager/releases) 下载:Mac 选 `.dmg`,Windows 选 `.exe`。
 
-安装包暂未签名。Mac 首次打开用右键 →「打开」;Windows 如果弹出蓝色提示,点「更多信息」→「仍要运行」。
+安装包暂未过苹果公证。Mac 首次打开会提示「无法验证…」——点「完成」,再到 系统设置 → 隐私与安全性 → **仍要打开**(macOS 14 及更早版本直接右键应用 →「打开」)。如果看到的是「已损坏,无法打开」,在终端里跑一次这条命令即可:
+
+```bash
+xattr -cr /Applications/AIManager.app
+```
+
+Windows 如果弹出蓝色提示,点「更多信息」→「仍要运行」。
 
 v0.1 在 macOS 上端到端验证过;Windows 真机验证排在下一步。
 

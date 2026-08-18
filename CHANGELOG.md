@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-08-18
+
+- **Fixed the macOS "damaged and can't be opened" error.** v0.1.0 shipped with no code signature at all, which Apple silicon Gatekeeper rejects with an unbypassable "damaged" dialog. Builds are now ad-hoc signed: the first open shows a "cannot verify" prompt instead, bypassable via System Settings → Privacy & Security → Open Anyway. If you already have a v0.1.0 copy, run `xattr -cr /Applications/AIManager.app` or just install this version over it.
+- **New app icon.** A clean letter-A tile, programmatically drawn (crisp squircle, transparent corners).
+
 ## 0.1.0 - 2026-08-18
 
 First public release. TypeScript + Electron, rebuilt from scratch.

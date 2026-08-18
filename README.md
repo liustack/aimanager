@@ -51,7 +51,13 @@ Issues are welcome any time: [open one](https://github.com/liustack/aimanager/is
 
 Download from [Releases](https://github.com/liustack/aimanager/releases): `.dmg` for Mac, `.exe` for Windows.
 
-The builds are not signed yet. On Mac, open it the first time with right-click → Open. On Windows, if a blue SmartScreen prompt appears, click "More info" → "Run anyway".
+The builds are not notarized yet. On the first open, Mac shows "Apple could not verify…" — click Done, then System Settings → Privacy & Security → **Open Anyway** (on macOS 14 and earlier, right-click the app → Open). If you ever see "damaged and can't be opened" instead, run this once in Terminal:
+
+```bash
+xattr -cr /Applications/AIManager.app
+```
+
+On Windows, if a blue SmartScreen prompt appears, click "More info" → "Run anyway".
 
 v0.1 is verified end to end on macOS; Windows real-machine verification is next in line.
 

@@ -14,8 +14,13 @@ mac:
     - target: dmg
       arch: [arm64, x64]
   category: public.app-category.utilities
-  # No signing certificate yet: electron-builder falls back to ad-hoc signing,
-  # which is required for the app to launch on Apple silicon at all.
+  # No Developer ID yet. "-" runs the full signing pipeline with an ad-hoc
+  # identity (sealed resources included). Without it Gatekeeper reports the
+  # downloaded app as "damaged" with no bypass; with it the dialog becomes
+  # "cannot verify", which System Settings can override. Hardened runtime is
+  # contradictory on an ad-hoc signature, so keep it off.
+  identity: "-"
+  hardenedRuntime: false
 win:
   target:
     - target: nsis
