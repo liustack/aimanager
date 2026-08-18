@@ -6,4 +6,4 @@
 4. Vendor passthrough, never replacement: official installers, desktop apps, and state-directory conventions are used as-is.
 5. Branch before touching main (`feat/` `fix/` `refactor/` `docs/` `chore/` prefixes). Conventional commits, atomic commits.
 
-@.claude/CLAUDE.md
+@.agents/private.md

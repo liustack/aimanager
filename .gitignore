@@ -1,6 +1,8 @@
 .issues/
 # Local-only agent steering and settings.
+.agents/
 .claude/
+.cursor/
 .DS_Store
 node_modules/
 out/
