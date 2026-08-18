@@ -11,6 +11,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { baseDir, ensureNode, exists, nodeExe, npmCli, run, runtimePath } from './runtime'
+import { npmRegistries } from './sources'
 
 const dshDir = join(baseDir, 'apps', 'dsh')
 const dshPkgDir = join(dshDir, 'node_modules', '@deepseek-ai', 'dsh')
@@ -31,6 +32,15 @@ export function dshRunning(): boolean {
   return child !== null && child.exitCode === null
 }
 
+export function envWithoutNpmConfig(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const cleaned: NodeJS.ProcessEnv = {}
+  for (const [key, value] of Object.entries(env)) {
+    if (key.toLowerCase().startsWith('npm_config_')) continue
+    cleaned[key] = value
+  }
+  return cleaned
+}
+
 export async function ensureDsh(onStage: (stage: string) => void): Promise<void> {
   const node = await ensureNode(onStage)
   if (await dshInstalled()) return
@@ -40,13 +50,38 @@ export async function ensureDsh(onStage: (stage: string) => void): Promise<void>
   if (!(await exists(pkgPath))) {
     await writeFile(pkgPath, JSON.stringify({ name: 'aimanager-dsh', private: true }, null, 2))
   }
+  const npmCache = join(baseDir, 'runtime', 'npm-cache')
+  const npmrc = join(baseDir, 'runtime', 'npmrc-isolated')
+  await mkdir(npmCache, { recursive: true })
+  if (!(await exists(npmrc))) await writeFile(npmrc, '')
   // npm runs as `node npm-cli.js` instead of the npm/.cmd shims: same code
   // path on every platform, and no shell needed to spawn .cmd on Windows.
-  await run(
-    nodeExe(node),
-    [npmCli(node), 'install', '@deepseek-ai/dsh@latest', '--no-fund', '--no-audit'],
-    { cwd: dshDir, env: { ...process.env, PATH: runtimePath(node) } }
-  )
+  // --cache/--userconfig keep npm off ~/.npm and ~/.npmrc; registry is tried
+  // official-then-mirror by sources.npmRegistries, never written to npmrc.
+  const isolation = [
+    '--no-fund',
+    '--no-audit',
+    '--cache',
+    npmCache,
+    '--userconfig',
+    npmrc,
+    '--fetch-retries=2',
+    '--fetch-timeout=60000'
+  ]
+  let lastError: unknown
+  for (const registry of npmRegistries()) {
+    try {
+      await run(
+        nodeExe(node),
+        [npmCli(node), 'install', '@deepseek-ai/dsh@latest', ...isolation, '--registry', registry],
+        { cwd: dshDir, env: { ...envWithoutNpmConfig(process.env), PATH: runtimePath(node) } }
+      )
+      return
+    } catch (err) {
+      lastError = err
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('安装失败,请检查网络后重试')
 }
 
 // Resolve dsh's entry script from its own bin declaration, then run it with

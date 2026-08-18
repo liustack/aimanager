@@ -24,6 +24,7 @@ src/
 ├── main/       # Electron main process: window management, engine supervision, IPC relay — no business logic
 ├── engine/     # resident engine process, one file per business domain
 │   ├── runtime.ts   # private Node.js supply, all platform differences
+│   ├── sources.ts   # artifact fetch: official + mirror fallback, stall, sha256
 │   ├── dsh.ts       # dsh: install, launch, probe, supervise
 │   └── apps.ts      # desktop apps: detect and launch
 ├── preload/    # contextBridge — wiring only

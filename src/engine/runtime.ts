@@ -7,12 +7,10 @@
 // that is absorbed here; other domains only see NodeRuntime.
 
 import { spawn } from 'node:child_process'
-import { createWriteStream } from 'node:fs'
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { Readable } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
+import { download, resolveUrls } from './sources'
 
 const isWindows = process.platform === 'win32'
 
@@ -101,10 +99,26 @@ export function pickLtsVersion(entries: DistEntry[]): string {
   return lts.version
 }
 
-async function pickLatestLts(): Promise<string> {
-  const res = await fetch('https://nodejs.org/dist/index.json')
-  if (!res.ok) throw new Error(`nodejs.org 响应异常(${res.status})`)
-  return pickLtsVersion((await res.json()) as DistEntry[])
+// Pinned latest LTS as of 2026-08-19 from https://nodejs.org/dist/index.json
+// (first lts !== false → v24.19.0 Krypton, date 2026-08-03). SHA256 from
+// https://nodejs.org/dist/v24.19.0/SHASUMS256.txt fetched the same day.
+export const PINNED_NODE_VERSION = 'v24.19.0'
+
+const PINNED_NODE_SHA256: Record<string, string> = {
+  'darwin-arm64': '8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d',
+  'darwin-x64': 'd1b5e999db158c62fe8f7267a4476b035d8bd93b1a605bac24a3f0dd166e3316',
+  'linux-x64': 'f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4',
+  'win-x64': '57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73'
+}
+
+export function pinnedNodeSha256(
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch
+): string {
+  const key = `${platform === 'win32' ? 'win' : platform}-${arch}`
+  const hash = PINNED_NODE_SHA256[key]
+  if (!hash) throw new Error(`没有该平台的运行环境(${platform}-${arch})`)
+  return hash
 }
 
 /** Official archive name, e.g. node-v24.19.0-darwin-arm64.tar.gz / node-v24.19.0-win-x64.zip */
@@ -122,16 +136,16 @@ export async function ensureNode(onStage: (stage: string) => void): Promise<Node
   if (existing) return existing
 
   onStage('node-download')
-  const version = await pickLatestLts()
+  const version = PINNED_NODE_VERSION
   const name = distName(version)
+  const sha256 = pinnedNodeSha256()
   await mkdir(nodeDir, { recursive: true })
   const archivePath = join(nodeDir, name)
-  const res = await fetch(`https://nodejs.org/dist/${version}/${name}`)
-  if (!res.ok || !res.body) throw new Error(`下载运行环境失败(${res.status})`)
-  await pipeline(
-    Readable.fromWeb(res.body as import('node:stream/web').ReadableStream),
-    createWriteStream(archivePath)
-  )
+  try {
+    await download(resolveUrls('node-dist', `${version}/${name}`), archivePath, { sha256 })
+  } catch {
+    throw new Error('下载运行环境失败,请检查网络后重试')
+  }
 
   onStage('node-extract')
   // bsdtar ships with both macOS and Windows 10+, and auto-detects zip.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveBinRelative } from './dsh'
+import { envWithoutNpmConfig, resolveBinRelative } from './dsh'
 
 describe('resolveBinRelative', () => {
   it('accepts a plain string bin', () => {
@@ -17,5 +17,29 @@ describe('resolveBinRelative', () => {
   it('throws when the package declares no bin', () => {
     expect(() => resolveBinRelative({})).toThrow()
     expect(() => resolveBinRelative({ bin: {} })).toThrow()
+  })
+})
+
+describe('envWithoutNpmConfig', () => {
+  it('drops npm_config_* keys case-insensitively and keeps proxy/path vars', () => {
+    const cleaned = envWithoutNpmConfig({
+      PATH: '/bin',
+      HTTP_PROXY: 'http://127.0.0.1:7890',
+      HTTPS_PROXY: 'http://127.0.0.1:7890',
+      NO_PROXY: 'localhost',
+      NODE_USE_ENV_PROXY: '1',
+      npm_config_devdir: '/tmp/devdir',
+      NPM_CONFIG_CACHE: '/tmp/npm',
+      Npm_Config_Registry: 'https://example.invalid',
+      HOME: '/Users/leon'
+    })
+    expect(cleaned).toEqual({
+      PATH: '/bin',
+      HTTP_PROXY: 'http://127.0.0.1:7890',
+      HTTPS_PROXY: 'http://127.0.0.1:7890',
+      NO_PROXY: 'localhost',
+      NODE_USE_ENV_PROXY: '1',
+      HOME: '/Users/leon'
+    })
   })
 })

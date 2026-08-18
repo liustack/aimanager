@@ -34,9 +34,30 @@ function broadcast(channel: string, payload: unknown): void {
   }
 }
 
+function engineForkEnv(): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) env[key] = value
+  }
+  // Node 24 fetch is undici and ignores HTTP(S)_PROXY unless this is set at
+  // process start (https://nodejs.org/api/cli.html#--use-env-proxy). `import
+  // 'undici'` is not a public builtin, so this is the engine's proxy path.
+  // Loopback stays in NO_PROXY so dsh health checks never go through a proxy.
+  env.NODE_USE_ENV_PROXY = '1'
+  const extra = ['127.0.0.1', 'localhost', '::1']
+  const existing = env.NO_PROXY || env.no_proxy || ''
+  const noProxy = [
+    ...new Set([...existing.split(',').map((s) => s.trim()).filter(Boolean), ...extra])
+  ].join(',')
+  env.NO_PROXY = noProxy
+  env.no_proxy = noProxy
+  return env
+}
+
 function startEngine(): void {
   engine = utilityProcess.fork(join(import.meta.dirname, 'engine.js'), [], {
-    serviceName: 'aimanager-engine'
+    serviceName: 'aimanager-engine',
+    env: engineForkEnv()
   })
   engine.on('message', (message: EngineMessage) => {
     if (message.event !== undefined) {

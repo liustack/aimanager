@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { distName, pickLtsVersion, type DistEntry } from './runtime'
+import { distName, pickLtsVersion, pinnedNodeSha256, type DistEntry } from './runtime'
 
 describe('pickLtsVersion', () => {
   it('picks the first LTS entry, skipping current releases', () => {
@@ -14,6 +14,27 @@ describe('pickLtsVersion', () => {
 
   it('throws when no LTS entry exists', () => {
     expect(() => pickLtsVersion([{ version: 'v25.0.0', lts: false }])).toThrow()
+  })
+})
+
+describe('pinnedNodeSha256', () => {
+  it('pins the official SHASUMS256.txt digest for each supported archive', () => {
+    expect(pinnedNodeSha256('darwin', 'arm64')).toBe(
+      '8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d'
+    )
+    expect(pinnedNodeSha256('darwin', 'x64')).toBe(
+      'd1b5e999db158c62fe8f7267a4476b035d8bd93b1a605bac24a3f0dd166e3316'
+    )
+    expect(pinnedNodeSha256('linux', 'x64')).toBe(
+      'f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4'
+    )
+    expect(pinnedNodeSha256('win32', 'x64')).toBe(
+      '57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73'
+    )
+  })
+
+  it('throws for an archive we do not pin', () => {
+    expect(() => pinnedNodeSha256('linux', 'arm64')).toThrow()
   })
 })
 
