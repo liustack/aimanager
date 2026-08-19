@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 - 2026-08-20
+
+- **Mac builds are now Developer ID signed and notarized by Apple.** No more Gatekeeper prompts or `xattr` workarounds — download, open, done. (Release builds run with hardened runtime enabled.)
+- **A real titlebar above the hosted DeepSeek Harness.** The 30px strip now shows a centered title and a hairline bottom border, and its colors come from sampling the actual rendered pixels of the dsh page — it follows dsh's light/dark appearance automatically, settling on the final color without flashing intermediate tones.
+- **Back to launchpad is one click.** The ⋯ popup menu became a direct launchpad button (native popup menus can't be edge-aligned in Electron and kept spilling out of the window).
+
 ## 0.1.1 - 2026-08-18
 
 - **Fixed the macOS "damaged and can't be opened" error.** v0.1.0 shipped with no code signature at all, which Apple silicon Gatekeeper rejects with an unbypassable "damaged" dialog. Builds are now ad-hoc signed: the first open shows a "cannot verify" prompt instead, bypassable via System Settings → Privacy & Security → Open Anyway. If you already have a v0.1.0 copy, run `xattr -cr /Applications/AIManager.app` or just install this version over it.

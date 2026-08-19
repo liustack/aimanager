@@ -31,6 +31,24 @@ const marks: Record<string, { icon: string; tone: string }> = {
   claude: { icon: claudeIcon, tone: 'tone-claude' }
 }
 
+/** Perceived luminance of `rgb()`/`#hex` colors; unparseable input is dark. */
+function isLightColor(color: string): boolean {
+  let r = 0
+  let g = 0
+  let b = 0
+  const rgb = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+  const hex = color.match(/^#([0-9a-f]{3}(?:[0-9a-f]{3})?)$/i)
+  if (rgb) {
+    ;[r, g, b] = [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
+  } else if (hex) {
+    const h = hex[1].length === 3 ? [...hex[1]].map((c) => c + c).join('') : hex[1]
+    ;[r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16))
+  } else {
+    return false
+  }
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.5
+}
+
 function caption(state: TileState, installed: boolean): string {
   if (state.phase === 'working') {
     if (state.progress !== undefined && state.stage === '下载中…') {
@@ -198,23 +216,44 @@ export default function App(): React.JSX.Element {
 
   // While dsh covers the window, only this 30px strip stays visible —
   // installed-PWA-style chrome colored by dsh's own sampled background
-  // (fallback: theme-color, then dark). Traffic lights left (native), a ⋯
-  // menu right (native popup — a DOM dropdown would hide under the dsh
-  // view), drag everywhere else.
+  // (fallback: theme-color, then dark). Traffic lights left (native), a
+  // centered title, a back-to-launchpad button right (a direct button, not a
+  // native popup menu — Electron menus can't right-align to a window edge),
+  // drag everywhere else. The hairline bottom border is what reads as "real
+  // titlebar" (a drop shadow would be painted under the native dsh view and
+  // never show); its tone and the control colors derive from the sampled
+  // background's luminance so light themes work too.
   if (dshLayer.shown) {
+    const bg = dshLayer.color ?? '#1a1a1c'
+    const light = isLightColor(bg)
+    const vars = {
+      background: bg,
+      '--strip-fg': light ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.55)',
+      '--strip-fg-strong': light ? 'rgba(0, 0, 0, 0.85)' : '#ffffff',
+      '--strip-border': light ? 'rgba(0, 0, 0, 0.10)' : 'rgba(255, 255, 255, 0.08)',
+      '--strip-hover': light ? 'rgba(0, 0, 0, 0.07)' : 'rgba(255, 255, 255, 0.16)'
+    } as React.CSSProperties
     return (
-      <header className="dsh-strip" style={{ background: dshLayer.color ?? '#1a1a1c' }}>
+      <header className="dsh-strip" style={vars}>
+        <span className="strip-title">DeepSeek Harness</span>
         <button
           type="button"
           className="strip-more"
-          aria-label="更多操作"
-          title="更多操作"
-          onClick={() => void window.aimanager.dshMenu()}
+          aria-label="回到启动台"
+          title="回到启动台"
+          onClick={() => void window.aimanager.dshBack()}
         >
+          {/* Launchpad glyph: the classic 3×3 dot grid. */}
           <svg viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="5" r="2" />
+            <circle cx="12" cy="5" r="2" />
+            <circle cx="19" cy="5" r="2" />
             <circle cx="5" cy="12" r="2" />
             <circle cx="12" cy="12" r="2" />
             <circle cx="19" cy="12" r="2" />
+            <circle cx="5" cy="19" r="2" />
+            <circle cx="12" cy="19" r="2" />
+            <circle cx="19" cy="19" r="2" />
           </svg>
         </button>
       </header>

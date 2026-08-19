@@ -24,7 +24,7 @@ declare global {
     aimanager: {
       engineCall: (method: string, params?: unknown) => Promise<unknown>
       openDsh: () => Promise<void>
-      dshMenu: () => Promise<void>
+      dshBack: () => Promise<void>
       onDshView: (callback: (state: { shown: boolean; color?: string | null }) => void) => () => void
       onEngineEvent: (callback: (message: EngineEvent) => void) => () => void
     }

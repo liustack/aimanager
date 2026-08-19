@@ -9,7 +9,7 @@ const api = {
   engineCall: (method: string, params?: unknown): Promise<unknown> =>
     ipcRenderer.invoke('engine:call', method, params),
   openDsh: (): Promise<void> => ipcRenderer.invoke('dsh:open'),
-  dshMenu: (): Promise<void> => ipcRenderer.invoke('dsh:menu'),
+  dshBack: (): Promise<void> => ipcRenderer.invoke('dsh:back'),
   onDshView: (
     callback: (state: { shown: boolean; color?: string | null }) => void
   ): (() => void) => {
