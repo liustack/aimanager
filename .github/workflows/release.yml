@@ -1,9 +1,10 @@
 name: release
 
 # Builds installable artifacts and attaches them to the GitHub Release when a
-# v* tag is pushed: macOS DMGs (arm64 + x64) and a Windows NSIS installer.
-# Builds are unsigned for now (no certificates); macOS relies on ad-hoc
-# signing, Windows will show SmartScreen's first-run prompt.
+# v* tag is pushed: macOS DMGs (arm64 + x64, Developer ID signed + notarized)
+# and a Windows NSIS installer (unsigned; SmartScreen shows a first-run
+# prompt). macOS signing needs five repo secrets: MAC_CERT_P12 (base64 .p12),
+# MAC_CERT_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.
 
 on:
   push:
@@ -40,3 +41,10 @@ jobs:
         run: pnpm dist --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing + notarization; empty on the Windows runner, where
+          # electron-builder ignores them.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

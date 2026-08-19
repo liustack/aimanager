@@ -14,13 +14,16 @@ mac:
     - target: dmg
       arch: [arm64, x64]
   category: public.app-category.utilities
-  # No Developer ID yet. "-" runs the full signing pipeline with an ad-hoc
-  # identity (sealed resources included). Without it Gatekeeper reports the
-  # downloaded app as "damaged" with no bypass; with it the dialog becomes
-  # "cannot verify", which System Settings can override. Hardened runtime is
-  # contradictory on an ad-hoc signature, so keep it off.
-  identity: "-"
-  hardenedRuntime: false
+  # Developer ID signing + notarization. The identity is auto-discovered from
+  # the keychain (CI imports the cert via CSC_LINK/CSC_KEY_PASSWORD);
+  # notarization credentials come from APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD
+  # / APPLE_TEAM_ID. Local `pnpm dist` without these still packages, just
+  # unsigned.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
 win:
   target:
     - target: nsis
