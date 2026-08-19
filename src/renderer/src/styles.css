@@ -244,13 +244,38 @@ button {
 }
 
 /* 30px strip above the embedded dsh view, painted inline with dsh's own
-   sampled background color. */
+   sampled background color. The hairline border-bottom sits inside the 30px
+   (border-box) so the dsh view laid out at y=30 never covers it; control and
+   title tones come from --strip-* vars derived from background luminance. */
 .dsh-strip {
+  position: relative;
+  box-sizing: border-box;
   height: 30px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   padding-right: 8px;
+  border-bottom: 1px solid var(--strip-border, rgba(255, 255, 255, 0.08));
+  /* The sampled color lands as one final value per theme switch; this only
+     softens that single jump. */
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.strip-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--strip-fg, rgba(255, 255, 255, 0.55));
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 0.25s ease;
 }
 
 .strip-more {
@@ -262,7 +287,7 @@ button {
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--strip-fg, rgba(255, 255, 255, 0.55));
   cursor: pointer;
   -webkit-app-region: no-drag;
   transition:
@@ -271,8 +296,8 @@ button {
 }
 
 .strip-more:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: #ffffff;
+  background: var(--strip-hover, rgba(255, 255, 255, 0.16));
+  color: var(--strip-fg-strong, #ffffff);
 }
 
 .strip-more svg {

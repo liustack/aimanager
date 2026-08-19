@@ -1,15 +1,7 @@
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import {
-  app,
-  BrowserWindow,
-  ipcMain,
-  Menu,
-  shell,
-  utilityProcess,
-  WebContentsView
-} from 'electron'
+import { app, BrowserWindow, ipcMain, shell, utilityProcess, WebContentsView } from 'electron'
 
 interface EngineMessage {
   id?: number
@@ -113,6 +105,7 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => mainWindow?.show())
   mainWindow.on('resize', layoutDshView)
   mainWindow.on('closed', () => {
+    stopDshSampling()
     mainWindow = null
     dshView = null
     dshViewShown = false
@@ -135,29 +128,83 @@ let dshViewShown = false
 let dshViewColor: string | null = null
 let dshLaunch: Promise<unknown> | null = null
 
-// Strip color, installed-PWA-style honest chrome (no fake continuation of
-// the page — backgrounds can be images, so pixel-seamlessness is
-// unattainable). Resolution: the page's rendered body background first
-// (dsh's theme-color meta declares pure black, which clashes; its actual
-// body color blends), then theme-color, then our dark default.
-async function sampleDshColor(): Promise<void> {
-  if (!dshView) return
+// Strip color: capture a sliver of real rendered pixels at the top-center of
+// the dsh view and average them. CSS-based sampling (body backgroundColor,
+// theme-color meta) lied — dsh paints its dark theme on inner containers
+// while body stays light. Pixels can't lie, and they track the user toggling
+// dsh's light/dark appearance, so we resample on an interval while shown.
+const DSH_SAMPLE_INTERVAL_MS = 500
+const DSH_SETTLE_INTERVAL_MS = 120
+const DSH_SETTLE_MAX_FRAMES = 25
+let dshSampleTimer: NodeJS.Timeout | null = null
+let dshSettling = false
+
+async function captureDshColor(): Promise<string | null> {
+  if (!dshView || !dshView.webContents.getURL().startsWith('http')) return null
   try {
-    const color = (await dshView.webContents.executeJavaScript(
-      `(() => {
-        for (const el of [document.body, document.documentElement]) {
-          const c = el && getComputedStyle(el).backgroundColor
-          if (c && c !== 'transparent' && c !== 'rgba(0, 0, 0, 0)') return c
-        }
-        return document.querySelector('meta[name="theme-color"]')?.content ?? null
-      })()`
-    )) as unknown
-    if (typeof color === 'string') {
+    const { width } = dshView.getBounds()
+    if (width < 32) return null
+    const image = await dshView.webContents.capturePage({
+      x: Math.floor(width / 2) - 8,
+      y: 2,
+      width: 16,
+      height: 6
+    })
+    const bitmap = image.toBitmap() // BGRA
+    if (bitmap.length < 4) return null
+    let r = 0
+    let g = 0
+    let b = 0
+    const count = bitmap.length / 4
+    for (let i = 0; i < bitmap.length; i += 4) {
+      b += bitmap[i]
+      g += bitmap[i + 1]
+      r += bitmap[i + 2]
+    }
+    return `rgb(${Math.round(r / count)}, ${Math.round(g / count)}, ${Math.round(b / count)})`
+  } catch {
+    // Sampling is cosmetic; the renderer falls back to its own dark tone.
+    return null
+  }
+}
+
+async function sampleDshColor(): Promise<void> {
+  if (dshSettling) return
+  const first = await captureDshColor()
+  if (!first || first === dshViewColor) return
+  // dsh animates its light/dark toggle, so a changed frame may be a
+  // mid-transition gray. Burst-sample until two consecutive frames agree
+  // (animation over) and commit only the final color — the strip jumps
+  // straight from old theme to new with no intermediate steps.
+  dshSettling = true
+  try {
+    let color = first
+    for (let i = 0; i < DSH_SETTLE_MAX_FRAMES; i++) {
+      await delay(DSH_SETTLE_INTERVAL_MS)
+      const next = await captureDshColor()
+      if (!next) break
+      if (next === color) break
+      color = next
+    }
+    if (color !== dshViewColor) {
       dshViewColor = color
       if (dshViewShown) mainWindow?.webContents.send('dsh:view', { shown: true, color })
     }
-  } catch {
-    // Sampling is cosmetic; the renderer falls back to its own dark tone.
+  } finally {
+    dshSettling = false
+  }
+}
+
+function startDshSampling(): void {
+  stopDshSampling()
+  void sampleDshColor()
+  dshSampleTimer = setInterval(() => void sampleDshColor(), DSH_SAMPLE_INTERVAL_MS)
+}
+
+function stopDshSampling(): void {
+  if (dshSampleTimer) {
+    clearInterval(dshSampleTimer)
+    dshSampleTimer = null
   }
 }
 
@@ -209,11 +256,13 @@ function showDshView(url: string): void {
   layoutDshView()
   dshView.setVisible(true)
   mainWindow.webContents.send('dsh:view', { shown: true, color: dshViewColor })
+  startDshSampling()
 }
 
 function hideDshView(): void {
   // Hidden, not destroyed: the dsh process keeps running and coming back is
   // instant.
+  stopDshSampling()
   dshView?.setVisible(false)
   dshViewShown = false
   mainWindow?.webContents.send('dsh:view', { shown: false })
@@ -283,18 +332,14 @@ app.whenReady().then(async () => {
     callEngine(method, params)
   )
   ipcMain.handle('dsh:open', () => openDsh())
-  // The strip's ⋯ button pops a native menu: OS menus render above the dsh
-  // WebContentsView (a renderer-drawn dropdown would be covered by it) and
-  // future per-harness actions can just be appended here. Position is
-  // computed here, right-aligned with margin so it never spills past the
-  // window edge.
-  ipcMain.handle('dsh:menu', () => {
-    if (!mainWindow) return
-    const menu = Menu.buildFromTemplate([{ label: '回到启动台', click: () => hideDshView() }])
-    const [width] = mainWindow.getContentSize()
-    // Right-align the popup with the ⋯ button (12px inset, ~110px menu).
-    menu.popup({ window: mainWindow, x: Math.max(8, width - 122), y: DSH_STRIP_HEIGHT })
-  })
+  // The strip's right-side control is a plain button, not a native popup
+  // menu. Electron menus can't be aligned to a window edge (no menu-size
+  // API, anchor is always the menu's top-left; electron#15096/#16008
+  // wontfix), so any menu anchored near the right edge either spills past
+  // the window or needs a guessed width. With a single action a direct
+  // button is also one click cheaper. If per-harness actions multiply,
+  // build a DOM dropdown in a small child window — not a native menu.
+  ipcMain.handle('dsh:back', () => hideDshView())
 
   startEngine()
 
