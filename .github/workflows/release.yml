@@ -15,7 +15,23 @@ permissions:
   contents: write
 
 jobs:
+  # The two platform builds finish at different times but start together; if
+  # the release does not exist yet, each electron-builder creates one and the
+  # tag ends up with two releases (happened on v0.1.2). Create it up front so
+  # both builds only attach assets.
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 预创建 Release
+        run: |
+          gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" \
+              --title "AIManager $GITHUB_REF_NAME" --notes "见 CHANGELOG.md / See CHANGELOG.md"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build:
+    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
