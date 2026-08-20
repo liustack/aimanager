@@ -53,6 +53,10 @@ function startEngine(): void {
   })
   engine.on('message', (message: EngineMessage) => {
     if (message.event !== undefined) {
+      if (message.event === 'dsh.viewReload' && dshView) {
+        const url = dshView.webContents.getURL()
+        if (url.startsWith('http')) void dshView.webContents.reload()
+      }
       broadcast('engine:event', { event: message.event, payload: message.payload })
       return
     }

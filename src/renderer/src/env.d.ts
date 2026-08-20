@@ -10,6 +10,7 @@ export interface EngineStatus {
   dshInstalled: boolean
   dshRunning: boolean
   dshUrl: string
+  dshUpdateReady?: string | null
 }
 
 export interface DesktopApp {

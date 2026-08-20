@@ -19,17 +19,26 @@ function emit(event: string, payload?: unknown): void {
 
 const onStage = (stage: string): void => emit('dsh.stage', stage)
 
+dsh.startUpdateChecker({
+  onReady: (version) => emit('dsh.updateReady', { version }),
+  onGone: () => emit('dsh.updateGone'),
+  onViewReload: () => emit('dsh.viewReload')
+})
+
 const handlers: Record<string, (params?: unknown) => Promise<unknown> | unknown> = {
   ping: () => 'pong',
   status: async () => ({
     node: await installedNode(),
     dshInstalled: await dsh.dshInstalled(),
     dshRunning: dsh.dshRunning(),
-    dshUrl: dsh.dshUrl
+    dshUrl: dsh.dshUrl,
+    dshUpdateReady: await dsh.pendingUpdateVersion()
   }),
   'dsh.setup': () => dsh.ensureDsh(onStage),
   'dsh.launch': () => dsh.launchDsh(onStage),
   'dsh.stop': () => dsh.stopDsh(),
+  'dsh.update': () => dsh.checkForUpdate(),
+  'dsh.applyUpdate': () => dsh.applyUpdate(),
   'apps.list': () => apps.listApps(),
   'apps.install': (params) => {
     const { id, targetDir } = params as { id: string; targetDir?: string }
