@@ -9,15 +9,23 @@
 // Install layout is versioned under apps/dsh/versions/<ver>/ with current.json
 // as the pointer. A leftover flat apps/dsh/node_modules tree is adopted in
 // place, never reinstalled.
+//
+// First-run also seeds the official web-profile plugins (modlens, modsearch,
+// dshmarket) via `dsh plugin add`, using the private Node and a corepack pnpm.
+// An already-present package, including a local link, is left untouched.
+// A successful seed is remembered under ~/.aimanager so a later uninstall
+// is not put back. Seeding is best-effort: failure never blocks dsh itself.
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import net from 'node:net'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import {
   baseDir,
   ensureNode,
+  ensurePnpm,
   exists,
   installedNode,
   nodeExe,
@@ -34,7 +42,9 @@ const currentFile = 'current.json'
 const pendingFile = 'pending.json'
 const stateFile = 'update-state.json'
 const legacySeenFile = 'seen.json'
-const distTagsPath = '/-/package/@deepseek-ai%2Fdsh/dist-tags'
+const WEB_PROFILE = 'web'
+const BUNDLED_WEB_PLUGINS = ['@liustack/modlens', '@liustack/modsearch', 'dshmarket'] as const
+const seededPluginsFile = 'seeded-web-plugins.json'
 
 // Dedicated port for the aimanager-managed instance. dsh defaults to 3080,
 // which a user-run copy may already occupy; a fixed private port keeps the
@@ -127,11 +137,95 @@ export function envWithoutNpmConfig(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return cleaned
 }
 
+export function pluginInstallEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  input: {
+    path: string
+    registry: string
+    corepackHome: string
+    storeDir: string
+    cacheDir: string
+  }
+): NodeJS.ProcessEnv {
+  // pnpm 11+ ignores npm_config_*. Set both so registry and store stay pinned
+  // regardless of which pnpm corepack materializes.
+  const cleaned = envWithoutNpmConfig(baseEnv)
+  for (const key of Object.keys(cleaned)) {
+    if (key.toLowerCase().startsWith('pnpm_config_')) delete cleaned[key]
+  }
+  return {
+    ...cleaned,
+    PATH: input.path,
+    COREPACK_NPM_REGISTRY: input.registry,
+    COREPACK_HOME: input.corepackHome,
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+    npm_config_registry: input.registry,
+    npm_config_store_dir: input.storeDir,
+    npm_config_cache: input.cacheDir,
+    pnpm_config_registry: input.registry,
+    pnpm_config_store_dir: input.storeDir,
+    pnpm_config_cache_dir: input.cacheDir
+  }
+}
+
 export function resolveBinRelative(pkg: { bin?: string | Record<string, string> }): string {
   const rel =
     typeof pkg.bin === 'string' ? pkg.bin : (pkg.bin?.dsh ?? Object.values(pkg.bin ?? {})[0])
   if (!rel) throw new Error('dsh 包未声明可执行入口')
   return rel
+}
+
+export function npmDistTagsPath(packageName: string): string {
+  return `/-/package/${packageName.replace('/', '%2F')}/dist-tags`
+}
+
+export function parseProfileBundles(raw: string): string[] | null {
+  try {
+    const data = JSON.parse(raw) as { dsh?: { profile?: { bundles?: unknown } } }
+    const bundles = data.dsh?.profile?.bundles
+    if (!Array.isArray(bundles)) return []
+    return bundles.filter((item): item is string => typeof item === 'string')
+  } catch {
+    return null
+  }
+}
+
+export function shouldSeedBundledPlugin(input: {
+  bundles: string[] | null
+  packagePresent: boolean
+  packageName: string
+  alreadySeeded: boolean
+}): boolean {
+  if (input.alreadySeeded) return false
+  if (input.packagePresent) return false
+  if (input.bundles?.includes(input.packageName)) return false
+  return true
+}
+
+/** Plugin seeding never blocks dsh install or launch. */
+export function disposeSeedFailure(packageName: string | null): {
+  blockLaunch: boolean
+  warn: string
+} {
+  return {
+    blockLaunch: false,
+    warn:
+      packageName === null
+        ? '插件安装器准备失败,已跳过预装'
+        : `插件 ${packageName} 安装失败,将在下次启动时重试`
+  }
+}
+
+export function parseSeededPlugins(raw: string): string[] {
+  try {
+    const data = JSON.parse(raw) as unknown
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return []
+    const packages = (data as { packages?: unknown }).packages
+    if (!Array.isArray(packages)) return []
+    return packages.filter((item): item is string => typeof item === 'string' && item.length > 0)
+  } catch {
+    return []
+  }
 }
 
 export function parseLatestTag(body: string): string {
@@ -539,11 +633,12 @@ function isOfficialNpmRegistry(registry: string): boolean {
 
 // npm's own --fetch-timeout is per request: a route that trickles a few bytes
 // every minute never trips it, so a crawling cross-border install would run
-// forever without ever reaching the mirror. Cap the whole install instead —
-// but only while another registry remains to try; the last candidate may
-// legitimately take as long as it needs. Generous on purpose: a healthy route
-// finishes well under this, and a capped user pays it once before source
-// memory reorders the next attempt.
+// forever without ever reaching the mirror. Cap the whole subprocess instead.
+// installLatest exempts the last candidate because dsh itself must land no
+// matter how slow the only remaining route is. Plugin seeding caps every
+// candidate: it is best-effort, sits on the launch path, and retries next
+// launch. Generous on purpose: a healthy route finishes well under this, and
+// a capped user pays it once before source memory reorders the next attempt.
 const INSTALL_CAP_MS = 10 * 60_000
 
 async function runNpm(
@@ -559,11 +654,154 @@ async function runNpm(
   })
 }
 
-async function fetchLatestTag(registry: string): Promise<string> {
-  const url = `${registry.replace(/\/$/, '')}${distTagsPath}`
+async function fetchLatestTag(registry: string, packageName = dshPackage): Promise<string> {
+  const url = `${registry.replace(/\/$/, '')}${npmDistTagsPath(packageName)}`
   const res = await fetch(url, { signal: AbortSignal.timeout(15_000), redirect: 'follow' })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return parseLatestTag(await res.text())
+}
+
+async function fetchLatestForPackage(packageName: string, registry: string): Promise<string> {
+  const version = await fetchLatestTag(registry, packageName)
+  if (!isSafeVersion(version)) {
+    throw new Error(`invalid version from registry: ${version}`)
+  }
+  return version
+}
+
+// Mirrors dsh resolveDshHome: $DSH_HOME if set and non-empty, else ~/.dsh.
+// A vendor change of that convention would silently miss the real profile.
+function webProfileDir(): string {
+  const home = process.env.DSH_HOME && process.env.DSH_HOME.length > 0 ? process.env.DSH_HOME : join(homedir(), '.dsh')
+  return join(home, 'profiles', WEB_PROFILE)
+}
+
+async function bundledPluginPresent(packageName: string): Promise<boolean> {
+  return exists(join(webProfileDir(), 'node_modules', ...packageName.split('/'), 'package.json'))
+}
+
+async function readWebProfileBundles(): Promise<string[] | null> {
+  try {
+    return parseProfileBundles(await readFile(join(webProfileDir(), 'package.json'), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+async function runDshCli(
+  node: NodeRuntime,
+  pointer: CurrentPointer,
+  args: string[],
+  opts: { timeoutMs?: number; registry: string }
+): Promise<void> {
+  const entry = await dshEntryFromPkg(pkgDir(dshDir, pointer))
+  const corepackHome = join(baseDir, 'runtime', 'corepack')
+  const storeDir = join(baseDir, 'runtime', 'pnpm-store')
+  const cacheDir = join(baseDir, 'runtime', 'pnpm-cache')
+  await mkdir(corepackHome, { recursive: true })
+  await mkdir(storeDir, { recursive: true })
+  await mkdir(cacheDir, { recursive: true })
+  await run(nodeExe(node), [entry, ...args], {
+    env: pluginInstallEnv(process.env, {
+      path: runtimePath(node),
+      registry: opts.registry,
+      corepackHome,
+      storeDir,
+      cacheDir
+    }),
+    timeoutMs: opts.timeoutMs
+  })
+}
+
+async function readSeededPluginNames(): Promise<Set<string>> {
+  try {
+    return new Set(parseSeededPlugins(await readFile(join(baseDir, seededPluginsFile), 'utf8')))
+  } catch {
+    return new Set()
+  }
+}
+
+async function markPluginSeeded(name: string): Promise<void> {
+  const names = [...(await readSeededPluginNames())]
+  if (names.includes(name)) return
+  names.push(name)
+  names.sort()
+  await writeJsonAtomic(baseDir, seededPluginsFile, { packages: names })
+}
+
+async function seedBundledPlugin(
+  node: NodeRuntime,
+  pointer: CurrentPointer,
+  name: string
+): Promise<void> {
+  let lastError: unknown
+  for (const registry of npmRegistries()) {
+    try {
+      const version = await fetchLatestForPackage(name, registry)
+      // pnpm 11 loose mode auto-writes minimumReleaseAgeExclude into the
+      // profile pnpm-workspace.yaml for a young pinned version. We accept
+      // that vendor-dir write. Setting minimumReleaseAge ourselves would
+      // flip strict mode on and abort a non-TTY install.
+      await runDshCli(node, pointer, ['plugin', '--profile', WEB_PROFILE, 'add', `${name}@${version}`], {
+        timeoutMs: INSTALL_CAP_MS,
+        registry
+      })
+      recordSourceWin('npm-registry', registry)
+      await markPluginSeeded(name)
+      return
+    } catch (err) {
+      lastError = err
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('安装失败,请检查网络后重试')
+}
+
+async function ensureBundledPlugins(
+  node: NodeRuntime,
+  pointer: CurrentPointer,
+  onStage: (stage: string) => void
+): Promise<void> {
+  const bundles = await readWebProfileBundles()
+  const seeded = await readSeededPluginNames()
+  const missing: string[] = []
+  for (const name of BUNDLED_WEB_PLUGINS) {
+    const present = await bundledPluginPresent(name)
+    if (
+      shouldSeedBundledPlugin({
+        bundles,
+        packagePresent: present,
+        packageName: name,
+        alreadySeeded: seeded.has(name)
+      })
+    ) {
+      missing.push(name)
+    }
+  }
+  if (missing.length === 0) return
+
+  onStage('dsh-plugin')
+  try {
+    await ensurePnpm(node)
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    console.warn(`[dsh-plugin] ${detail}`)
+    const disposition = disposeSeedFailure(null)
+    console.warn(disposition.warn)
+    if (disposition.blockLaunch) throw err
+    return
+  }
+
+  for (const name of missing) {
+    try {
+      await seedBundledPlugin(node, pointer, name)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      console.warn(`[dsh-plugin] ${detail}`)
+      const disposition = disposeSeedFailure(name)
+      console.warn(disposition.warn)
+      if (disposition.blockLaunch) throw err
+    }
+  }
 }
 
 async function dshEntryFromPkg(pkgRoot: string): Promise<string> {
@@ -680,10 +918,12 @@ async function installLatest(node: NodeRuntime): Promise<CurrentPointer> {
 
 async function ensureDshLocked(node: NodeRuntime, onStage: (stage: string) => void): Promise<void> {
   await cleanStagingDirs()
-  const pointer = await adoptLegacyInstall(dshDir)
-  if (pointer && (await pkgExists(dshDir, pointer))) return
-  onStage('dsh-install')
-  await installLatest(node)
+  let pointer = await adoptLegacyInstall(dshDir)
+  if (!pointer || !(await pkgExists(dshDir, pointer))) {
+    onStage('dsh-install')
+    pointer = await installLatest(node)
+  }
+  await ensureBundledPlugins(node, pointer, onStage)
 }
 
 export async function ensureDsh(onStage: (stage: string) => void): Promise<void> {
