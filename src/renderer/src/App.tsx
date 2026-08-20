@@ -134,6 +134,9 @@ export default function App(): React.JSX.Element {
   const [dshLayer, setDshLayer] = useState<{ shown: boolean; color?: string | null }>({
     shown: false
   })
+  const [dshUpdateReady, setDshUpdateReady] = useState<string | null>(null)
+  const [dshApplyingUpdate, setDshApplyingUpdate] = useState(false)
+  const [dshApplyHint, setDshApplyHint] = useState<string | null>(null)
 
   useEffect(() => {
     if (!window.aimanager) {
@@ -147,6 +150,7 @@ export default function App(): React.JSX.Element {
         const status = raw as EngineStatus
         setEngineReady(true)
         setDshInstalled(status.dshInstalled)
+        setDshUpdateReady(status.dshUpdateReady ?? null)
         if (status.dshRunning) setDsh({ phase: 'ready' })
       })
       .catch(() => setEngineReady(false))
@@ -158,6 +162,11 @@ export default function App(): React.JSX.Element {
       if (event === 'dsh.stage') {
         setDsh({ phase: 'working', stage: stageCopy[String(payload)] ?? '正在处理…' })
       }
+      if (event === 'dsh.updateReady') {
+        const version = (payload as { version?: unknown } | undefined)?.version
+        if (typeof version === 'string') setDshUpdateReady(version)
+      }
+      if (event === 'dsh.updateGone') setDshUpdateReady(null)
       if (event === 'app.stage') {
         const { id, stage } = payload as { id: string; stage: string }
         setAppStates((prev) => ({
@@ -179,6 +188,23 @@ export default function App(): React.JSX.Element {
       offEngine()
     }
   }, [])
+
+  const applyDshUpdate = (): void => {
+    if (dshApplyingUpdate) return
+    setDshApplyingUpdate(true)
+    setDshApplyHint(null)
+    window.aimanager
+      .engineCall('dsh.applyUpdate')
+      .then((raw) => {
+        const result = raw as { applied?: boolean; pending?: string | null; message?: string }
+        setDshUpdateReady(result.pending ?? null)
+        if (typeof result.message === 'string' && result.message) setDshApplyHint(result.message)
+      })
+      .catch((err: unknown) => {
+        setDshApplyHint(err instanceof Error ? err.message : '切换失败,请稍后重试')
+      })
+      .finally(() => setDshApplyingUpdate(false))
+  }
 
   const openDsh = (): void => {
     setDsh({ phase: 'working', stage: '正在准备…' })
@@ -235,6 +261,20 @@ export default function App(): React.JSX.Element {
     } as React.CSSProperties
     return (
       <header className="dsh-strip" style={vars}>
+        {dshUpdateReady && (
+          <button
+            type="button"
+            className="strip-update"
+            disabled={dshApplyingUpdate}
+            title={dshApplyHint ?? undefined}
+            onClick={applyDshUpdate}
+          >
+            新版本已就绪 · 点击启用
+          </button>
+        )}
+        {!dshUpdateReady && dshApplyHint && (
+          <span className="strip-update strip-hint">{dshApplyHint}</span>
+        )}
         <span className="strip-title">DeepSeek Harness</span>
         <button
           type="button"

@@ -278,6 +278,44 @@ button {
   transition: color 0.25s ease;
 }
 
+.strip-update {
+  position: absolute;
+  left: 78px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 20px;
+  padding: 0 9px;
+  border: 1px solid var(--strip-border, rgba(255, 255, 255, 0.08));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--strip-fg-strong, #ffffff);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.strip-update:hover:not(:disabled) {
+  background: var(--strip-hover, rgba(255, 255, 255, 0.16));
+}
+
+.strip-update:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.strip-hint {
+  cursor: default;
+  pointer-events: none;
+}
+
 .strip-more {
   display: flex;
   align-items: center;
