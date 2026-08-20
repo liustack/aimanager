@@ -12,8 +12,10 @@ import {
   isSafeVersion,
   isStagingDirName,
   parseCurrentPointer,
+  npmDistTagsPath,
   parseLatestTag,
   parsePending,
+  parseProfileBundles,
   pointerAfterRollback,
   pointerAfterSuccessfulSwitch,
   readCurrentPointer,
@@ -27,6 +29,7 @@ import {
   shouldAutoApplyOnLaunch,
   shouldRemoveLegacyTree,
   shouldRollback,
+  shouldSeedBundledPlugin,
   shouldSkipRejected,
   staleVersionDirs,
   stagingDirName,
@@ -449,6 +452,71 @@ describe('cold-start eligibility', () => {
     expect(shouldAutoApplyOnLaunch(true, false)).toBe(false)
     expect(shouldAutoApplyOnLaunch(false, true)).toBe(false)
     expect(shouldAutoApplyOnLaunch(false, false)).toBe(false)
+  })
+})
+
+describe('shouldSeedBundledPlugin', () => {
+  it('seeds when the profile does not exist yet', () => {
+    expect(
+      shouldSeedBundledPlugin({ bundles: null, packagePresent: false, packageName: 'dshmarket' })
+    ).toBe(true)
+  })
+
+  it('seeds a named plugin that is not in the bundle list', () => {
+    expect(
+      shouldSeedBundledPlugin({
+        bundles: ['@liustack/modlens'],
+        packagePresent: false,
+        packageName: 'dshmarket'
+      })
+    ).toBe(true)
+  })
+
+  it('skips when the plugin is already a bundle and the package is on disk', () => {
+    expect(
+      shouldSeedBundledPlugin({
+        bundles: ['@liustack/modlens', 'dshmarket'],
+        packagePresent: true,
+        packageName: 'dshmarket'
+      })
+    ).toBe(false)
+  })
+
+  it('reseeds when the bundle row is present but the package files are gone', () => {
+    expect(
+      shouldSeedBundledPlugin({
+        bundles: ['dshmarket'],
+        packagePresent: false,
+        packageName: 'dshmarket'
+      })
+    ).toBe(true)
+  })
+})
+
+describe('parseProfileBundles', () => {
+  it('reads the dsh profile bundle list', () => {
+    expect(
+      parseProfileBundles(
+        JSON.stringify({
+          dsh: { profile: { bundles: ['@liustack/modlens', 'dshmarket'] } }
+        })
+      )
+    ).toEqual(['@liustack/modlens', 'dshmarket'])
+  })
+
+  it('returns an empty list for a profile with no bundles field', () => {
+    expect(parseProfileBundles('{"name":"dsh-profile-web"}')).toEqual([])
+  })
+
+  it('returns null for unreadable JSON', () => {
+    expect(parseProfileBundles('not-json')).toBeNull()
+  })
+})
+
+describe('npmDistTagsPath', () => {
+  it('encodes a scoped package and leaves an unscoped name alone', () => {
+    expect(npmDistTagsPath('@liustack/modlens')).toBe('/-/package/@liustack%2Fmodlens/dist-tags')
+    expect(npmDistTagsPath('dshmarket')).toBe('/-/package/dshmarket/dist-tags')
   })
 })
 

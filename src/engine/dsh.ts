@@ -9,15 +9,21 @@
 // Install layout is versioned under apps/dsh/versions/<ver>/ with current.json
 // as the pointer. A leftover flat apps/dsh/node_modules tree is adopted in
 // place, never reinstalled.
+//
+// First-run also seeds the official web-profile plugins (modlens, modsearch,
+// dshmarket) via `dsh plugin add`, using the private Node and a corepack pnpm.
+// An already-present bundle, including a local link, is left untouched.
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import net from 'node:net'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import {
   baseDir,
   ensureNode,
+  ensurePnpm,
   exists,
   installedNode,
   nodeExe,
@@ -34,7 +40,8 @@ const currentFile = 'current.json'
 const pendingFile = 'pending.json'
 const stateFile = 'update-state.json'
 const legacySeenFile = 'seen.json'
-const distTagsPath = '/-/package/@deepseek-ai%2Fdsh/dist-tags'
+const WEB_PROFILE = 'web'
+const BUNDLED_WEB_PLUGINS = ['@liustack/modlens', '@liustack/modsearch', 'dshmarket'] as const
 
 // Dedicated port for the aimanager-managed instance. dsh defaults to 3080,
 // which a user-run copy may already occupy; a fixed private port keeps the
@@ -132,6 +139,31 @@ export function resolveBinRelative(pkg: { bin?: string | Record<string, string> 
     typeof pkg.bin === 'string' ? pkg.bin : (pkg.bin?.dsh ?? Object.values(pkg.bin ?? {})[0])
   if (!rel) throw new Error('dsh 包未声明可执行入口')
   return rel
+}
+
+export function npmDistTagsPath(packageName: string): string {
+  return `/-/package/${packageName.replace('/', '%2F')}/dist-tags`
+}
+
+export function parseProfileBundles(raw: string): string[] | null {
+  try {
+    const data = JSON.parse(raw) as { dsh?: { profile?: { bundles?: unknown } } }
+    const bundles = data.dsh?.profile?.bundles
+    if (!Array.isArray(bundles)) return []
+    return bundles.filter((item): item is string => typeof item === 'string')
+  } catch {
+    return null
+  }
+}
+
+export function shouldSeedBundledPlugin(input: {
+  bundles: string[] | null
+  packagePresent: boolean
+  packageName: string
+}): boolean {
+  if (!input.bundles) return true
+  if (!input.bundles.includes(input.packageName)) return true
+  return !input.packagePresent
 }
 
 export function parseLatestTag(body: string): string {
@@ -559,11 +591,84 @@ async function runNpm(
   })
 }
 
-async function fetchLatestTag(registry: string): Promise<string> {
-  const url = `${registry.replace(/\/$/, '')}${distTagsPath}`
+async function fetchLatestTag(registry: string, packageName = dshPackage): Promise<string> {
+  const url = `${registry.replace(/\/$/, '')}${npmDistTagsPath(packageName)}`
   const res = await fetch(url, { signal: AbortSignal.timeout(15_000), redirect: 'follow' })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return parseLatestTag(await res.text())
+}
+
+async function fetchLatestForPackage(packageName: string): Promise<string> {
+  let lastError: unknown
+  for (const registry of npmRegistries()) {
+    try {
+      const version = await fetchLatestTag(registry, packageName)
+      if (isSafeVersion(version)) return version
+    } catch (err) {
+      lastError = err
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('安装失败,请检查网络后重试')
+}
+
+function webProfileDir(): string {
+  const home = process.env.DSH_HOME && process.env.DSH_HOME.length > 0 ? process.env.DSH_HOME : join(homedir(), '.dsh')
+  return join(home, 'profiles', WEB_PROFILE)
+}
+
+async function bundledPluginPresent(packageName: string): Promise<boolean> {
+  return exists(join(webProfileDir(), 'node_modules', ...packageName.split('/'), 'package.json'))
+}
+
+async function readWebProfileBundles(): Promise<string[] | null> {
+  try {
+    return parseProfileBundles(await readFile(join(webProfileDir(), 'package.json'), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+async function runDshCli(
+  node: NodeRuntime,
+  pointer: CurrentPointer,
+  args: string[],
+  timeoutMs?: number
+): Promise<void> {
+  const entry = await dshEntryFromPkg(pkgDir(dshDir, pointer))
+  await run(nodeExe(node), [entry, ...args], {
+    env: { ...process.env, PATH: runtimePath(node) },
+    timeoutMs
+  })
+}
+
+async function ensureBundledPlugins(
+  node: NodeRuntime,
+  pointer: CurrentPointer,
+  onStage: (stage: string) => void
+): Promise<void> {
+  const bundles = await readWebProfileBundles()
+  const missing: string[] = []
+  for (const name of BUNDLED_WEB_PLUGINS) {
+    const present = await bundledPluginPresent(name)
+    if (shouldSeedBundledPlugin({ bundles, packagePresent: present, packageName: name })) {
+      missing.push(name)
+    }
+  }
+  if (missing.length === 0) return
+
+  onStage('dsh-plugin')
+  await ensurePnpm(node)
+  const registries = npmRegistries()
+  const capMs = registries.length > 1 ? INSTALL_CAP_MS : undefined
+  for (const name of missing) {
+    const version = await fetchLatestForPackage(name)
+    try {
+      await runDshCli(node, pointer, ['plugin', '--profile', WEB_PROFILE, 'add', `${name}@${version}`], capMs)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message.slice(-200) : String(err)
+      throw new Error(`插件 ${name} 安装失败,请检查网络后重试${detail ? `:${detail}` : ''}`)
+    }
+  }
 }
 
 async function dshEntryFromPkg(pkgRoot: string): Promise<string> {
@@ -680,10 +785,12 @@ async function installLatest(node: NodeRuntime): Promise<CurrentPointer> {
 
 async function ensureDshLocked(node: NodeRuntime, onStage: (stage: string) => void): Promise<void> {
   await cleanStagingDirs()
-  const pointer = await adoptLegacyInstall(dshDir)
-  if (pointer && (await pkgExists(dshDir, pointer))) return
-  onStage('dsh-install')
-  await installLatest(node)
+  let pointer = await adoptLegacyInstall(dshDir)
+  if (!pointer || !(await pkgExists(dshDir, pointer))) {
+    onStage('dsh-install')
+    pointer = await installLatest(node)
+  }
+  await ensureBundledPlugins(node, pointer, onStage)
 }
 
 export async function ensureDsh(onStage: (stage: string) => void): Promise<void> {

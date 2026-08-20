@@ -18,6 +18,7 @@ const stageCopy: Record<string, string> = {
   'node-download': '正在准备…',
   'node-extract': '正在准备…',
   'dsh-install': '正在安装…',
+  'dsh-plugin': '正在安装插件…',
   starting: '正在启动…',
   'app-download': '下载中…',
   'app-install': '正在安装…'

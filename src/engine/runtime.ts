@@ -35,6 +35,29 @@ export function npmCli(runtime: NodeRuntime): string {
     : join(runtime.dir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js')
 }
 
+function corepackBin(runtime: NodeRuntime): string {
+  return join(runtime.binDir, isWindows ? 'corepack.cmd' : 'corepack')
+}
+
+function pnpmBin(runtime: NodeRuntime): string {
+  return join(runtime.binDir, isWindows ? 'pnpm.cmd' : 'pnpm')
+}
+
+/** dsh plugin is a thin pnpm forwarder. Private Node ships corepack, not pnpm. */
+export async function ensurePnpm(runtime: NodeRuntime): Promise<void> {
+  if (await exists(pnpmBin(runtime))) return
+  await run(corepackBin(runtime), ['enable'], {
+    env: {
+      ...process.env,
+      PATH: runtimePath(runtime),
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+    }
+  })
+  if (!(await exists(pnpmBin(runtime)))) {
+    throw new Error('插件安装器准备失败,请重试')
+  }
+}
+
 /** PATH with the private node's bin directory prepended. */
 export function runtimePath(runtime: NodeRuntime): string {
   return `${runtime.binDir}${delimiter}${process.env.PATH ?? ''}`
