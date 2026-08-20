@@ -1,11 +1,16 @@
 // Artifact-fetch domain: official source plus China mirrors, tried in order
 // per request. No probe, no global "which network" switch — nodejs.org being
-// reachable does not imply registry.npmjs.org is.
+// reachable does not imply registry.npmjs.org is. Instead the last source
+// that actually delivered is remembered per artifact ("source memory"), so
+// users on a slow route to the official host skip straight to the mirror on
+// later requests, and the official source is retried after a window so
+// changed networks (proxy on/off, travel) migrate back automatically.
 
 import { createHash } from 'node:crypto'
-import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir, rm } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { createReadStream, createWriteStream, readFileSync } from 'node:fs'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
@@ -52,14 +57,100 @@ function officialBase(artifact: ArtifactId): string {
   return ARTIFACT_SOURCES[artifact].official
 }
 
+// Retry the official source once the remembered win is this old. The cost is
+// one slow attempt per window for users who really need the mirror; the gain
+// is that everyone else migrates back to the official source by itself.
+export const RETRY_OFFICIAL_MS = 7 * 24 * 60 * 60 * 1000
+
+export interface SourceWin {
+  winner: string
+  wonAt: number
+}
+
+export function orderBases(bases: string[], memo: SourceWin | undefined, now: number): string[] {
+  if (!memo) return bases
+  if (now - memo.wonAt >= RETRY_OFFICIAL_MS) return bases
+  const idx = bases.indexOf(memo.winner)
+  if (idx <= 0) return bases
+  return [bases[idx], ...bases.slice(0, idx), ...bases.slice(idx + 1)]
+}
+
+// A win by the official source clears the memory (official-first is the
+// default order). While the same mirror keeps winning, wonAt is kept from its
+// first win so the official retry actually happens once the window elapses.
+export function updatedWin(
+  prev: SourceWin | undefined,
+  base: string,
+  official: string,
+  now: number
+): SourceWin | undefined {
+  if (base === official) return undefined
+  if (prev?.winner === base) return prev
+  return { winner: base, wonAt: now }
+}
+
+const memoryFile = join(homedir(), '.aimanager', 'source-memory.json')
+let memoryState: Partial<Record<ArtifactId, SourceWin>> | null = null
+
+/** Test isolation hook: pin the in-memory state (or null to reload from disk). */
+export function primeSourceMemory(state: Partial<Record<ArtifactId, SourceWin>> | null): void {
+  memoryState = state
+}
+
+function loadMemory(): Partial<Record<ArtifactId, SourceWin>> {
+  if (memoryState) return memoryState
+  const out: Partial<Record<ArtifactId, SourceWin>> = {}
+  try {
+    const raw = JSON.parse(readFileSync(memoryFile, 'utf8')) as Record<string, unknown>
+    for (const key of Object.keys(ARTIFACT_SOURCES) as ArtifactId[]) {
+      const rec = raw[key] as { winner?: unknown; wonAt?: unknown } | undefined
+      if (rec && typeof rec.winner === 'string' && typeof rec.wonAt === 'number') {
+        out[key] = { winner: rec.winner, wonAt: rec.wonAt }
+      }
+    }
+  } catch {
+    // no memory yet
+  }
+  memoryState = out
+  return out
+}
+
+export function recordSourceWin(artifact: ArtifactId, base: string): void {
+  // The override is a verification hook; don't let test runs poison memory.
+  if (process.env.AIMANAGER_OFFICIAL_BASE) return
+  const memo = loadMemory()
+  const next = updatedWin(memo[artifact], stripSlash(base), stripSlash(officialBase(artifact)), Date.now())
+  if (next === memo[artifact]) return
+  if (next === undefined) delete memo[artifact]
+  else memo[artifact] = next
+  void mkdir(dirname(memoryFile), { recursive: true })
+    .then(() => writeFile(memoryFile, JSON.stringify(memo, null, 2)))
+    .catch(() => undefined)
+}
+
+function basesFor(artifact: ArtifactId): string[] {
+  const bases = [officialBase(artifact), ...ARTIFACT_SOURCES[artifact].mirrors].map(stripSlash)
+  return orderBases(bases, loadMemory()[artifact], Date.now())
+}
+
+function baseOfUrl(artifact: ArtifactId, url: string): string | null {
+  for (const base of [officialBase(artifact), ...ARTIFACT_SOURCES[artifact].mirrors].map(stripSlash)) {
+    if (url === base || url.startsWith(`${base}/`)) return base
+  }
+  return null
+}
+
 export function resolveUrls(artifact: ArtifactId, path: string): string[] {
   const rel = path.replace(/^\//, '')
-  const bases = [officialBase(artifact), ...ARTIFACT_SOURCES[artifact].mirrors]
-  return bases.map((base) => `${stripSlash(base)}/${rel}`)
+  return basesFor(artifact).map((base) => `${base}/${rel}`)
 }
 
 export function npmRegistries(): string[] {
-  return [officialBase('npm-registry'), ...ARTIFACT_SOURCES['npm-registry'].mirrors].map(stripSlash)
+  return basesFor('npm-registry')
+}
+
+export function officialNpmRegistry(): string {
+  return stripSlash(officialBase('npm-registry'))
 }
 
 export async function tryCandidates<T>(
@@ -112,6 +203,8 @@ export interface DownloadOpts {
   onProgress?: (received: number, total: number) => void
   sha256?: string
   stallMs?: number
+  /** When set, the base that delivered is remembered for future ordering. */
+  artifact?: ArtifactId
 }
 
 async function downloadOne(
@@ -168,7 +261,13 @@ export async function download(
   await mkdir(dirname(destPath), { recursive: true })
   await tryCandidates(
     candidateUrls,
-    (url, { hasNextCandidate }) => downloadOne(url, destPath, opts, hasNextCandidate),
+    async (url, { hasNextCandidate }) => {
+      await downloadOne(url, destPath, opts, hasNextCandidate)
+      if (opts.artifact) {
+        const base = baseOfUrl(opts.artifact, url)
+        if (base) recordSourceWin(opts.artifact, base)
+      }
+    },
     async () => {
       await rm(destPath, { force: true })
     }
