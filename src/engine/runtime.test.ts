@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { distName, pickLtsVersion, pinnedNodeSha256, type DistEntry } from './runtime'
+import { corepackCliPath, distName, pickLtsVersion, pinnedNodeSha256, type DistEntry } from './runtime'
 
 describe('pickLtsVersion', () => {
   it('picks the first LTS entry, skipping current releases', () => {
@@ -35,6 +35,17 @@ describe('pinnedNodeSha256', () => {
 
   it('throws for an archive we do not pin', () => {
     expect(() => pinnedNodeSha256('linux', 'arm64')).toThrow()
+  })
+})
+
+describe('corepackCliPath', () => {
+  it('uses the unix tarball layout and the windows zip layout', () => {
+    expect(corepackCliPath('/rt/v24.19.0', 'darwin')).toBe(
+      '/rt/v24.19.0/lib/node_modules/corepack/dist/corepack.js'
+    )
+    expect(corepackCliPath('/rt/v24.19.0', 'win32')).toBe(
+      '/rt/v24.19.0/node_modules/corepack/dist/corepack.js'
+    )
   })
 })
 

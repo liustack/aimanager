@@ -12,7 +12,9 @@
 //
 // First-run also seeds the official web-profile plugins (modlens, modsearch,
 // dshmarket) via `dsh plugin add`, using the private Node and a corepack pnpm.
-// An already-present bundle, including a local link, is left untouched.
+// An already-present package, including a local link, is left untouched.
+// A successful seed is remembered under ~/.aimanager so a later uninstall
+// is not put back. Seeding is best-effort: failure never blocks dsh itself.
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
@@ -42,6 +44,7 @@ const stateFile = 'update-state.json'
 const legacySeenFile = 'seen.json'
 const WEB_PROFILE = 'web'
 const BUNDLED_WEB_PLUGINS = ['@liustack/modlens', '@liustack/modsearch', 'dshmarket'] as const
+const seededPluginsFile = 'seeded-web-plugins.json'
 
 // Dedicated port for the aimanager-managed instance. dsh defaults to 3080,
 // which a user-run copy may already occupy; a fixed private port keeps the
@@ -134,6 +137,37 @@ export function envWithoutNpmConfig(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return cleaned
 }
 
+export function pluginInstallEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  input: {
+    path: string
+    registry: string
+    corepackHome: string
+    storeDir: string
+    cacheDir: string
+  }
+): NodeJS.ProcessEnv {
+  // pnpm 11+ ignores npm_config_*. Set both so registry and store stay pinned
+  // regardless of which pnpm corepack materializes.
+  const cleaned = envWithoutNpmConfig(baseEnv)
+  for (const key of Object.keys(cleaned)) {
+    if (key.toLowerCase().startsWith('pnpm_config_')) delete cleaned[key]
+  }
+  return {
+    ...cleaned,
+    PATH: input.path,
+    COREPACK_NPM_REGISTRY: input.registry,
+    COREPACK_HOME: input.corepackHome,
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+    npm_config_registry: input.registry,
+    npm_config_store_dir: input.storeDir,
+    npm_config_cache: input.cacheDir,
+    pnpm_config_registry: input.registry,
+    pnpm_config_store_dir: input.storeDir,
+    pnpm_config_cache_dir: input.cacheDir
+  }
+}
+
 export function resolveBinRelative(pkg: { bin?: string | Record<string, string> }): string {
   const rel =
     typeof pkg.bin === 'string' ? pkg.bin : (pkg.bin?.dsh ?? Object.values(pkg.bin ?? {})[0])
@@ -160,10 +194,38 @@ export function shouldSeedBundledPlugin(input: {
   bundles: string[] | null
   packagePresent: boolean
   packageName: string
+  alreadySeeded: boolean
 }): boolean {
-  if (!input.bundles) return true
-  if (!input.bundles.includes(input.packageName)) return true
-  return !input.packagePresent
+  if (input.alreadySeeded) return false
+  if (input.packagePresent) return false
+  if (input.bundles?.includes(input.packageName)) return false
+  return true
+}
+
+/** Plugin seeding never blocks dsh install or launch. */
+export function disposeSeedFailure(packageName: string | null): {
+  blockLaunch: boolean
+  warn: string
+} {
+  return {
+    blockLaunch: false,
+    warn:
+      packageName === null
+        ? '插件安装器准备失败,已跳过预装'
+        : `插件 ${packageName} 安装失败,将在下次启动时重试`
+  }
+}
+
+export function parseSeededPlugins(raw: string): string[] {
+  try {
+    const data = JSON.parse(raw) as unknown
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return []
+    const packages = (data as { packages?: unknown }).packages
+    if (!Array.isArray(packages)) return []
+    return packages.filter((item): item is string => typeof item === 'string' && item.length > 0)
+  } catch {
+    return []
+  }
 }
 
 export function parseLatestTag(body: string): string {
@@ -571,11 +633,12 @@ function isOfficialNpmRegistry(registry: string): boolean {
 
 // npm's own --fetch-timeout is per request: a route that trickles a few bytes
 // every minute never trips it, so a crawling cross-border install would run
-// forever without ever reaching the mirror. Cap the whole install instead —
-// but only while another registry remains to try; the last candidate may
-// legitimately take as long as it needs. Generous on purpose: a healthy route
-// finishes well under this, and a capped user pays it once before source
-// memory reorders the next attempt.
+// forever without ever reaching the mirror. Cap the whole subprocess instead,
+// but only while another registry remains to try. The last candidate may
+// legitimately take as long as it needs. installLatest and plugin add both
+// use this rule. Generous on purpose: a healthy route finishes well under
+// this, and a capped user pays it once before source memory reorders the
+// next attempt.
 const INSTALL_CAP_MS = 10 * 60_000
 
 async function runNpm(
@@ -598,19 +661,16 @@ async function fetchLatestTag(registry: string, packageName = dshPackage): Promi
   return parseLatestTag(await res.text())
 }
 
-async function fetchLatestForPackage(packageName: string): Promise<string> {
-  let lastError: unknown
-  for (const registry of npmRegistries()) {
-    try {
-      const version = await fetchLatestTag(registry, packageName)
-      if (isSafeVersion(version)) return version
-    } catch (err) {
-      lastError = err
-    }
+async function fetchLatestForPackage(packageName: string, registry: string): Promise<string> {
+  const version = await fetchLatestTag(registry, packageName)
+  if (!isSafeVersion(version)) {
+    throw new Error(`invalid version from registry: ${version}`)
   }
-  throw lastError instanceof Error ? lastError : new Error('安装失败,请检查网络后重试')
+  return version
 }
 
+// Mirrors dsh resolveDshHome: $DSH_HOME if set and non-empty, else ~/.dsh.
+// A vendor change of that convention would silently miss the real profile.
 function webProfileDir(): string {
   const home = process.env.DSH_HOME && process.env.DSH_HOME.length > 0 ? process.env.DSH_HOME : join(homedir(), '.dsh')
   return join(home, 'profiles', WEB_PROFILE)
@@ -632,13 +692,71 @@ async function runDshCli(
   node: NodeRuntime,
   pointer: CurrentPointer,
   args: string[],
-  timeoutMs?: number
+  opts: { timeoutMs?: number; registry: string }
 ): Promise<void> {
   const entry = await dshEntryFromPkg(pkgDir(dshDir, pointer))
+  const corepackHome = join(baseDir, 'runtime', 'corepack')
+  const storeDir = join(baseDir, 'runtime', 'pnpm-store')
+  const cacheDir = join(baseDir, 'runtime', 'pnpm-cache')
+  await mkdir(corepackHome, { recursive: true })
+  await mkdir(storeDir, { recursive: true })
+  await mkdir(cacheDir, { recursive: true })
   await run(nodeExe(node), [entry, ...args], {
-    env: { ...process.env, PATH: runtimePath(node) },
-    timeoutMs
+    env: pluginInstallEnv(process.env, {
+      path: runtimePath(node),
+      registry: opts.registry,
+      corepackHome,
+      storeDir,
+      cacheDir
+    }),
+    timeoutMs: opts.timeoutMs
   })
+}
+
+async function readSeededPluginNames(): Promise<Set<string>> {
+  try {
+    return new Set(parseSeededPlugins(await readFile(join(baseDir, seededPluginsFile), 'utf8')))
+  } catch {
+    return new Set()
+  }
+}
+
+async function markPluginSeeded(name: string): Promise<void> {
+  const names = [...(await readSeededPluginNames())]
+  if (names.includes(name)) return
+  names.push(name)
+  names.sort()
+  await writeJsonAtomic(baseDir, seededPluginsFile, { packages: names })
+}
+
+async function seedBundledPlugin(
+  node: NodeRuntime,
+  pointer: CurrentPointer,
+  name: string
+): Promise<void> {
+  let lastError: unknown
+  const registries = npmRegistries()
+  for (let i = 0; i < registries.length; i++) {
+    const registry = registries[i]
+    const capMs = i < registries.length - 1 ? INSTALL_CAP_MS : undefined
+    try {
+      const version = await fetchLatestForPackage(name, registry)
+      // pnpm 11 loose mode auto-writes minimumReleaseAgeExclude into the
+      // profile pnpm-workspace.yaml for a young pinned version. We accept
+      // that vendor-dir write. Setting minimumReleaseAge ourselves would
+      // flip strict mode on and abort a non-TTY install.
+      await runDshCli(node, pointer, ['plugin', '--profile', WEB_PROFILE, 'add', `${name}@${version}`], {
+        timeoutMs: capMs,
+        registry
+      })
+      recordSourceWin('npm-registry', registry)
+      await markPluginSeeded(name)
+      return
+    } catch (err) {
+      lastError = err
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('安装失败,请检查网络后重试')
 }
 
 async function ensureBundledPlugins(
@@ -647,26 +765,44 @@ async function ensureBundledPlugins(
   onStage: (stage: string) => void
 ): Promise<void> {
   const bundles = await readWebProfileBundles()
+  const seeded = await readSeededPluginNames()
   const missing: string[] = []
   for (const name of BUNDLED_WEB_PLUGINS) {
     const present = await bundledPluginPresent(name)
-    if (shouldSeedBundledPlugin({ bundles, packagePresent: present, packageName: name })) {
+    if (
+      shouldSeedBundledPlugin({
+        bundles,
+        packagePresent: present,
+        packageName: name,
+        alreadySeeded: seeded.has(name)
+      })
+    ) {
       missing.push(name)
     }
   }
   if (missing.length === 0) return
 
   onStage('dsh-plugin')
-  await ensurePnpm(node)
-  const registries = npmRegistries()
-  const capMs = registries.length > 1 ? INSTALL_CAP_MS : undefined
+  try {
+    await ensurePnpm(node)
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    console.warn(`[dsh-plugin] ${detail}`)
+    const disposition = disposeSeedFailure(null)
+    console.warn(disposition.warn)
+    if (disposition.blockLaunch) throw err
+    return
+  }
+
   for (const name of missing) {
-    const version = await fetchLatestForPackage(name)
     try {
-      await runDshCli(node, pointer, ['plugin', '--profile', WEB_PROFILE, 'add', `${name}@${version}`], capMs)
+      await seedBundledPlugin(node, pointer, name)
     } catch (err) {
-      const detail = err instanceof Error ? err.message.slice(-200) : String(err)
-      throw new Error(`插件 ${name} 安装失败,请检查网络后重试${detail ? `:${detail}` : ''}`)
+      const detail = err instanceof Error ? err.message : String(err)
+      console.warn(`[dsh-plugin] ${detail}`)
+      const disposition = disposeSeedFailure(name)
+      console.warn(disposition.warn)
+      if (disposition.blockLaunch) throw err
     }
   }
 }

@@ -6,6 +6,7 @@ import {
   adoptLegacyInstall,
   decideAfterRollback,
   decideSwitchFailure,
+  disposeSeedFailure,
   envWithoutNpmConfig,
   isBakeElapsed,
   isHttpHealthyResponse,
@@ -16,6 +17,8 @@ import {
   parseLatestTag,
   parsePending,
   parseProfileBundles,
+  parseSeededPlugins,
+  pluginInstallEnv,
   pointerAfterRollback,
   pointerAfterSuccessfulSwitch,
   readCurrentPointer,
@@ -458,7 +461,12 @@ describe('cold-start eligibility', () => {
 describe('shouldSeedBundledPlugin', () => {
   it('seeds when the profile does not exist yet', () => {
     expect(
-      shouldSeedBundledPlugin({ bundles: null, packagePresent: false, packageName: 'dshmarket' })
+      shouldSeedBundledPlugin({
+        bundles: null,
+        packagePresent: false,
+        packageName: 'dshmarket',
+        alreadySeeded: false
+      })
     ).toBe(true)
   })
 
@@ -467,7 +475,8 @@ describe('shouldSeedBundledPlugin', () => {
       shouldSeedBundledPlugin({
         bundles: ['@liustack/modlens'],
         packagePresent: false,
-        packageName: 'dshmarket'
+        packageName: 'dshmarket',
+        alreadySeeded: false
       })
     ).toBe(true)
   })
@@ -477,31 +486,125 @@ describe('shouldSeedBundledPlugin', () => {
       shouldSeedBundledPlugin({
         bundles: ['@liustack/modlens', 'dshmarket'],
         packagePresent: true,
-        packageName: 'dshmarket'
+        packageName: 'dshmarket',
+        alreadySeeded: false
       })
     ).toBe(false)
   })
 
-  it('reseeds when the bundle row is present but the package files are gone', () => {
+  it('skips when listed in bundles even if the package files are gone', () => {
     expect(
       shouldSeedBundledPlugin({
         bundles: ['dshmarket'],
         packagePresent: false,
-        packageName: 'dshmarket'
+        packageName: 'dshmarket',
+        alreadySeeded: false
       })
-    ).toBe(true)
+    ).toBe(false)
+  })
+
+  it('does not overwrite a package that is on disk but not in the bundle list', () => {
+    expect(
+      shouldSeedBundledPlugin({
+        bundles: ['@liustack/modlens'],
+        packagePresent: true,
+        packageName: 'dshmarket',
+        alreadySeeded: false
+      })
+    ).toBe(false)
+  })
+
+  it('skips after a successful seed even if the user later removes the package', () => {
+    expect(
+      shouldSeedBundledPlugin({
+        bundles: null,
+        packagePresent: false,
+        packageName: 'dshmarket',
+        alreadySeeded: true
+      })
+    ).toBe(false)
+  })
+})
+
+describe('disposeSeedFailure', () => {
+  it('never blocks launch and keeps the user-facing warning in Chinese', () => {
+    expect(disposeSeedFailure('dshmarket')).toEqual({
+      blockLaunch: false,
+      warn: '插件 dshmarket 安装失败,将在下次启动时重试'
+    })
+    expect(disposeSeedFailure(null)).toEqual({
+      blockLaunch: false,
+      warn: '插件安装器准备失败,已跳过预装'
+    })
+  })
+})
+
+describe('pluginInstallEnv', () => {
+  it('drops leaked npm_config_* and pins registry plus private pnpm dirs', () => {
+    const env = pluginInstallEnv(
+      {
+        PATH: '/usr/bin',
+        npm_config_registry: 'https://example.invalid',
+        NPM_CONFIG_CACHE: '/tmp/leaked',
+        PNPM_CONFIG_REGISTRY: 'https://leaked.invalid',
+        HOME: '/Users/leon'
+      },
+      {
+        path: '/private/node/bin:/usr/bin',
+        registry: 'https://registry.npmmirror.com',
+        corepackHome: '/private/corepack',
+        storeDir: '/private/pnpm-store',
+        cacheDir: '/private/pnpm-cache'
+      }
+    )
+    expect(env.npm_config_registry).toBe('https://registry.npmmirror.com')
+    expect(env.pnpm_config_registry).toBe('https://registry.npmmirror.com')
+    expect(env.COREPACK_NPM_REGISTRY).toBe('https://registry.npmmirror.com')
+    expect(env.COREPACK_HOME).toBe('/private/corepack')
+    expect(env.COREPACK_ENABLE_DOWNLOAD_PROMPT).toBe('0')
+    expect(env.npm_config_store_dir).toBe('/private/pnpm-store')
+    expect(env.npm_config_cache).toBe('/private/pnpm-cache')
+    expect(env.pnpm_config_store_dir).toBe('/private/pnpm-store')
+    expect(env.pnpm_config_cache_dir).toBe('/private/pnpm-cache')
+    expect(env.PATH).toBe('/private/node/bin:/usr/bin')
+    expect(env.HOME).toBe('/Users/leon')
+    expect(env.NPM_CONFIG_CACHE).toBeUndefined()
+    expect(env.PNPM_CONFIG_REGISTRY).toBeUndefined()
   })
 })
 
 describe('parseProfileBundles', () => {
-  it('reads the dsh profile bundle list', () => {
+  it('reads bare package names from a real dsh web profile package.json', () => {
     expect(
       parseProfileBundles(
         JSON.stringify({
-          dsh: { profile: { bundles: ['@liustack/modlens', 'dshmarket'] } }
+          name: 'dsh-profile-web',
+          private: true,
+          dsh: {
+            profile: {
+              bundles: [
+                '@deepseek-ai/dsh-base',
+                '@deepseek-ai/dsh-web-app',
+                '@liustack/modlens',
+                '@liustack/modsearch',
+                'dshmarket'
+              ]
+            }
+          },
+          dependencies: {
+            '@liustack/modlens': '1.2.3',
+            '@liustack/modsearch': '1.2.3',
+            dshmarket: '^1.16.2'
+          }
         })
       )
-    ).toEqual(['@liustack/modlens', 'dshmarket'])
+    ).toEqual([
+      '@deepseek-ai/dsh-base',
+      '@deepseek-ai/dsh-web-app',
+      '@liustack/modlens',
+      '@liustack/modsearch',
+      'dshmarket'
+    ])
   })
 
   it('returns an empty list for a profile with no bundles field', () => {
@@ -510,6 +613,20 @@ describe('parseProfileBundles', () => {
 
   it('returns null for unreadable JSON', () => {
     expect(parseProfileBundles('not-json')).toBeNull()
+  })
+})
+
+describe('parseSeededPlugins', () => {
+  it('reads the per-package marker list', () => {
+    expect(parseSeededPlugins('{"packages":["dshmarket","@liustack/modlens"]}')).toEqual([
+      'dshmarket',
+      '@liustack/modlens'
+    ])
+  })
+
+  it('returns an empty list for a corrupt marker file', () => {
+    expect(parseSeededPlugins('not-json')).toEqual([])
+    expect(parseSeededPlugins('{"packages":[1,""]}')).toEqual([])
   })
 })
 

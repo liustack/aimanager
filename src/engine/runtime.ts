@@ -35,8 +35,18 @@ export function npmCli(runtime: NodeRuntime): string {
     : join(runtime.dir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js')
 }
 
-function corepackBin(runtime: NodeRuntime): string {
-  return join(runtime.binDir, isWindows ? 'corepack.cmd' : 'corepack')
+/** JS entry, never the .cmd shim. Spawning .cmd without shell throws EINVAL after CVE-2024-27980. */
+export function corepackCliPath(
+  distDir: string,
+  platform: NodeJS.Platform = process.platform
+): string {
+  return platform === 'win32'
+    ? join(distDir, 'node_modules', 'corepack', 'dist', 'corepack.js')
+    : join(distDir, 'lib', 'node_modules', 'corepack', 'dist', 'corepack.js')
+}
+
+export function corepackCli(runtime: NodeRuntime): string {
+  return corepackCliPath(runtime.dir)
 }
 
 function pnpmBin(runtime: NodeRuntime): string {
@@ -46,10 +56,13 @@ function pnpmBin(runtime: NodeRuntime): string {
 /** dsh plugin is a thin pnpm forwarder. Private Node ships corepack, not pnpm. */
 export async function ensurePnpm(runtime: NodeRuntime): Promise<void> {
   if (await exists(pnpmBin(runtime))) return
-  await run(corepackBin(runtime), ['enable'], {
+  const home = join(baseDir, 'runtime', 'corepack')
+  await mkdir(home, { recursive: true })
+  await run(nodeExe(runtime), [corepackCli(runtime), 'enable'], {
     env: {
       ...process.env,
       PATH: runtimePath(runtime),
+      COREPACK_HOME: home,
       COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
     }
   })
