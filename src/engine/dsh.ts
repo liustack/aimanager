@@ -26,7 +26,7 @@ import {
   runtimePath,
   type NodeRuntime
 } from './runtime'
-import { npmRegistries } from './sources'
+import { npmRegistries, officialNpmRegistry, recordSourceWin } from './sources'
 
 const dshDir = join(baseDir, 'apps', 'dsh')
 const dshPackage = '@deepseek-ai/dsh'
@@ -534,13 +534,28 @@ async function ensureNpmIsolationDirs(): Promise<void> {
 }
 
 function isOfficialNpmRegistry(registry: string): boolean {
-  return registry.replace(/\/$/, '') === npmRegistries()[0]
+  return registry.replace(/\/$/, '') === officialNpmRegistry()
 }
 
-async function runNpm(node: NodeRuntime, args: string[], cwd: string): Promise<void> {
+// npm's own --fetch-timeout is per request: a route that trickles a few bytes
+// every minute never trips it, so a crawling cross-border install would run
+// forever without ever reaching the mirror. Cap the whole install instead —
+// but only while another registry remains to try; the last candidate may
+// legitimately take as long as it needs. Generous on purpose: a healthy route
+// finishes well under this, and a capped user pays it once before source
+// memory reorders the next attempt.
+const INSTALL_CAP_MS = 10 * 60_000
+
+async function runNpm(
+  node: NodeRuntime,
+  args: string[],
+  cwd: string,
+  timeoutMs?: number
+): Promise<void> {
   await run(nodeExe(node), [npmCli(node), ...args], {
     cwd,
-    env: { ...envWithoutNpmConfig(process.env), PATH: runtimePath(node) }
+    env: { ...envWithoutNpmConfig(process.env), PATH: runtimePath(node) },
+    timeoutMs
   })
 }
 
@@ -608,7 +623,8 @@ async function cleanupRetention(pointer: CurrentPointer): Promise<void> {
 async function installPinnedVersion(
   node: NodeRuntime,
   version: string,
-  registry: string
+  registry: string,
+  capMs?: number
 ): Promise<void> {
   if (!isSafeVersion(version)) throw new Error('invalid version')
   const versionsDir = join(dshDir, 'versions')
@@ -629,12 +645,14 @@ async function installPinnedVersion(
     await runNpm(
       node,
       ['install', `${dshPackage}@${version}`, '--no-fund', '--no-audit', ...npmIsolation(), '--registry', registry],
-      partialDir
+      partialDir,
+      capMs
     )
     if (isOfficialNpmRegistry(registry)) {
-      await runNpm(node, ['audit', 'signatures', ...npmIsolation(), '--registry', registry], partialDir)
+      await runNpm(node, ['audit', 'signatures', ...npmIsolation(), '--registry', registry], partialDir, capMs)
     }
     await rename(partialDir, finalDir)
+    recordSourceWin('npm-registry', registry)
   } catch (err) {
     await rm(partialDir, { recursive: true, force: true })
     throw err
@@ -643,10 +661,13 @@ async function installPinnedVersion(
 
 async function installLatest(node: NodeRuntime): Promise<CurrentPointer> {
   let lastError: unknown
-  for (const registry of npmRegistries()) {
+  const registries = npmRegistries()
+  for (let i = 0; i < registries.length; i++) {
+    const registry = registries[i]
+    const capMs = i < registries.length - 1 ? INSTALL_CAP_MS : undefined
     try {
       const version = await fetchLatestTag(registry)
-      await installPinnedVersion(node, version, registry)
+      await installPinnedVersion(node, version, registry, capMs)
       const pointer: CurrentPointer = { version, path: versionRelativePath(version) }
       await writeCurrentPointer(dshDir, pointer)
       return pointer
@@ -932,7 +953,10 @@ async function checkForUpdateLocked(): Promise<void> {
   if (!pointer || !(await pkgExists(dshDir, pointer))) return
 
   let lastError: unknown
-  for (const registry of npmRegistries()) {
+  const registries = npmRegistries()
+  for (let i = 0; i < registries.length; i++) {
+    const registry = registries[i]
+    const capMs = i < registries.length - 1 ? INSTALL_CAP_MS : undefined
     try {
       const latest = await fetchLatestTag(registry)
       if (!isSafeVersion(latest)) continue
@@ -962,7 +986,7 @@ async function checkForUpdateLocked(): Promise<void> {
         return
       }
 
-      await installPinnedVersion(node, latest, registry)
+      await installPinnedVersion(node, latest, registry, capMs)
       const entry = await dshEntryFromPkg(join(dshDir, 'versions', latest, 'node_modules', '@deepseek-ai', 'dsh'))
       if (!(await preflightEntry(node, entry))) {
         await rm(join(dshDir, 'versions', latest), { recursive: true, force: true })

@@ -2,18 +2,28 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   assertSha256,
   createStallWatch,
   MIN_THROUGHPUT_BYTES_PER_SEC,
   npmRegistries,
+  orderBases,
+  primeSourceMemory,
   resolveUrls,
+  RETRY_OFFICIAL_MS,
   sha256File,
   shouldAbandonForThroughput,
   THROUGHPUT_WARMUP_MS,
-  tryCandidates
+  tryCandidates,
+  updatedWin
 } from './sources'
+
+// Pin the source memory empty so tests never depend on the developer's real
+// ~/.aimanager/source-memory.json.
+beforeEach(() => {
+  primeSourceMemory({})
+})
 
 describe('resolveUrls', () => {
   it('puts the official node dist origin first and the npmmirror second', () => {
@@ -52,6 +62,60 @@ describe('resolveUrls', () => {
 describe('npmRegistries', () => {
   it('returns official then mirror, with no path suffix', () => {
     expect(npmRegistries()).toEqual(['https://registry.npmjs.org', 'https://registry.npmmirror.com'])
+  })
+
+  it('puts a remembered mirror win first', () => {
+    primeSourceMemory({
+      'npm-registry': { winner: 'https://registry.npmmirror.com', wonAt: Date.now() }
+    })
+    expect(npmRegistries()).toEqual(['https://registry.npmmirror.com', 'https://registry.npmjs.org'])
+  })
+})
+
+describe('orderBases', () => {
+  const bases = ['official', 'mirror-a', 'mirror-b']
+
+  it('keeps the default order without a memory', () => {
+    expect(orderBases(bases, undefined, 1000)).toEqual(bases)
+  })
+
+  it('moves a fresh mirror win to the front, preserving the rest', () => {
+    const memo = { winner: 'mirror-b', wonAt: 1000 }
+    expect(orderBases(bases, memo, 1000 + RETRY_OFFICIAL_MS - 1)).toEqual([
+      'mirror-b',
+      'official',
+      'mirror-a'
+    ])
+  })
+
+  it('reverts to official-first once the win is old enough to re-probe', () => {
+    const memo = { winner: 'mirror-a', wonAt: 1000 }
+    expect(orderBases(bases, memo, 1000 + RETRY_OFFICIAL_MS)).toEqual(bases)
+  })
+
+  it('ignores a winner that is already first or unknown', () => {
+    expect(orderBases(bases, { winner: 'official', wonAt: 1000 }, 1000)).toEqual(bases)
+    expect(orderBases(bases, { winner: 'gone', wonAt: 1000 }, 1000)).toEqual(bases)
+  })
+})
+
+describe('updatedWin', () => {
+  it('clears the memory when the official source wins', () => {
+    const prev = { winner: 'mirror', wonAt: 1 }
+    expect(updatedWin(prev, 'official', 'official', 2)).toBeUndefined()
+  })
+
+  it('keeps wonAt while the same mirror keeps winning, so the re-probe still happens', () => {
+    const prev = { winner: 'mirror', wonAt: 1 }
+    expect(updatedWin(prev, 'mirror', 'official', 999)).toBe(prev)
+  })
+
+  it('records a new mirror win with the current time', () => {
+    expect(updatedWin(undefined, 'mirror', 'official', 42)).toEqual({ winner: 'mirror', wonAt: 42 })
+    expect(updatedWin({ winner: 'other', wonAt: 1 }, 'mirror', 'official', 42)).toEqual({
+      winner: 'mirror',
+      wonAt: 42
+    })
   })
 })
 

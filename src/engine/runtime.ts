@@ -52,21 +52,34 @@ export async function exists(path: string): Promise<boolean> {
 export function run(
   cmd: string,
   args: string[],
-  opts: { cwd?: string; env?: NodeJS.ProcessEnv } = {}
+  opts: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number } = {}
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
-      ...opts,
+      cwd: opts.cwd,
+      env: opts.env,
       stdio: ['ignore', 'ignore', 'pipe'],
       windowsHide: true
     })
     let stderr = ''
+    let timedOut = false
+    const timer = opts.timeoutMs
+      ? setTimeout(() => {
+          timedOut = true
+          child.kill('SIGKILL')
+        }, opts.timeoutMs)
+      : undefined
     child.stderr.on('data', (chunk: Buffer) => {
       stderr += String(chunk)
     })
-    child.on('error', reject)
+    child.on('error', (err) => {
+      clearTimeout(timer)
+      reject(err)
+    })
     child.on('exit', (code) => {
-      if (code === 0) resolve()
+      clearTimeout(timer)
+      if (timedOut) reject(new Error(`${cmd} timed out after ${opts.timeoutMs}ms`))
+      else if (code === 0) resolve()
       else reject(new Error(`${cmd} exited with ${code}: ${stderr.slice(-400)}`))
     })
   })
@@ -142,7 +155,10 @@ export async function ensureNode(onStage: (stage: string) => void): Promise<Node
   await mkdir(nodeDir, { recursive: true })
   const archivePath = join(nodeDir, name)
   try {
-    await download(resolveUrls('node-dist', `${version}/${name}`), archivePath, { sha256 })
+    await download(resolveUrls('node-dist', `${version}/${name}`), archivePath, {
+      sha256,
+      artifact: 'node-dist'
+    })
   } catch {
     throw new Error('下载运行环境失败,请检查网络后重试')
   }
