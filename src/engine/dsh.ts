@@ -633,12 +633,12 @@ function isOfficialNpmRegistry(registry: string): boolean {
 
 // npm's own --fetch-timeout is per request: a route that trickles a few bytes
 // every minute never trips it, so a crawling cross-border install would run
-// forever without ever reaching the mirror. Cap the whole subprocess instead,
-// but only while another registry remains to try. The last candidate may
-// legitimately take as long as it needs. installLatest and plugin add both
-// use this rule. Generous on purpose: a healthy route finishes well under
-// this, and a capped user pays it once before source memory reorders the
-// next attempt.
+// forever without ever reaching the mirror. Cap the whole subprocess instead.
+// installLatest exempts the last candidate because dsh itself must land no
+// matter how slow the only remaining route is. Plugin seeding caps every
+// candidate: it is best-effort, sits on the launch path, and retries next
+// launch. Generous on purpose: a healthy route finishes well under this, and
+// a capped user pays it once before source memory reorders the next attempt.
 const INSTALL_CAP_MS = 10 * 60_000
 
 async function runNpm(
@@ -735,10 +735,7 @@ async function seedBundledPlugin(
   name: string
 ): Promise<void> {
   let lastError: unknown
-  const registries = npmRegistries()
-  for (let i = 0; i < registries.length; i++) {
-    const registry = registries[i]
-    const capMs = i < registries.length - 1 ? INSTALL_CAP_MS : undefined
+  for (const registry of npmRegistries()) {
     try {
       const version = await fetchLatestForPackage(name, registry)
       // pnpm 11 loose mode auto-writes minimumReleaseAgeExclude into the
@@ -746,7 +743,7 @@ async function seedBundledPlugin(
       // that vendor-dir write. Setting minimumReleaseAge ourselves would
       // flip strict mode on and abort a non-TTY install.
       await runDshCli(node, pointer, ['plugin', '--profile', WEB_PROFILE, 'add', `${name}@${version}`], {
-        timeoutMs: capMs,
+        timeoutMs: INSTALL_CAP_MS,
         registry
       })
       recordSourceWin('npm-registry', registry)
