@@ -28,4 +28,4 @@ const api = {
   }
 }
 
-contextBridge.exposeInMainWorld('aimanager', api)
+contextBridge.exposeInMainWorld('summono', api)

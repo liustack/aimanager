@@ -22,7 +22,7 @@ export interface DesktopApp {
 
 declare global {
   interface Window {
-    aimanager: {
+    summono: {
       engineCall: (method: string, params?: unknown) => Promise<unknown>
       openDsh: () => Promise<void>
       dshBack: () => Promise<void>

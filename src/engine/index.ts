@@ -1,4 +1,4 @@
-// aimanager engine: the resident process that does the real work (runtime
+// Summono engine: the resident process that does the real work (runtime
 // installs, harness supervision). It runs as an Electron utility process,
 // isolated from the GUI behind this RPC seam so it can be replaced
 // independently without touching the app shell.

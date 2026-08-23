@@ -1,5 +1,5 @@
 // dsh domain: installs and supervises DeepSeek Harness. Its web UI is served
-// locally and rendered inside an aimanager window; the user never sees npm,
+// locally and rendered inside a Summono window; the user never sees npm,
 // npx, or a port number.
 //
 // State intentionally stays in dsh's own default home (~/.dsh), shared with
@@ -13,7 +13,7 @@
 // First-run also seeds the official web-profile plugins (modlens, modsearch,
 // dshmarket) via `dsh plugin add`, using the private Node and a corepack pnpm.
 // An already-present package, including a local link, is left untouched.
-// A successful seed is remembered under ~/.aimanager so a later uninstall
+// A successful seed is remembered under ~/.summono so a later uninstall
 // is not put back. Seeding is best-effort: failure never blocks dsh itself.
 
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -46,7 +46,7 @@ const WEB_PROFILE = 'web'
 const BUNDLED_WEB_PLUGINS = ['@liustack/modlens', '@liustack/modsearch', 'dshmarket'] as const
 const seededPluginsFile = 'seeded-web-plugins.json'
 
-// Dedicated port for the aimanager-managed instance. dsh defaults to 3080,
+// Dedicated port for the Summono-managed instance. dsh defaults to 3080,
 // which a user-run copy may already occupy; a fixed private port keeps the
 // two from colliding or impersonating each other.
 const dshPort = 34517
@@ -876,7 +876,7 @@ async function installPinnedVersion(
   await mkdir(partialDir, { recursive: true })
   await writeFile(
     join(partialDir, 'package.json'),
-    JSON.stringify({ name: 'aimanager-dsh', private: true, dependencies: { [dshPackage]: version } }, null, 2)
+    JSON.stringify({ name: 'summono-dsh', private: true, dependencies: { [dshPackage]: version } }, null, 2)
   )
   await ensureNpmIsolationDirs()
   try {

@@ -48,7 +48,7 @@ function engineForkEnv(): Record<string, string> {
 
 function startEngine(): void {
   engine = utilityProcess.fork(join(import.meta.dirname, 'engine.js'), [], {
-    serviceName: 'aimanager-engine',
+    serviceName: 'summono-engine',
     env: engineForkEnv()
   })
   engine.on('message', (message: EngineMessage) => {
@@ -90,7 +90,7 @@ function createWindow(): void {
     width: 1080,
     height: 720,
     show: false,
-    title: 'aimanager',
+    title: 'Summono',
     backgroundColor: '#0d0d12',
     // Frameless look: macOS keeps only the traffic lights, Windows/Linux get
     // native window controls overlaid on our background.
@@ -123,7 +123,7 @@ function createWindow(): void {
 }
 
 // dsh's web UI lives inside the main window (per plan: the user never leaves
-// aimanager) under a 30px strip. The strip is rendered by our renderer (a
+// Summono) under a 30px strip. The strip is rendered by our renderer (a
 // plain DOM ✕ — native-view overlays proved unreliable for clicks) and
 // doubles as the drag region. Traffic lights keep their native spot inside it.
 const DSH_STRIP_HEIGHT = 30
