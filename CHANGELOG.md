@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-08-24
 
 - **AIManager is now Summono.** New name, new mascot: a little white ghost you summon agents with. The GitHub repo moved to `liustack/summono` (old links redirect), the app identity and window title changed accordingly, and the private state directory migrates automatically from `~/.aimanager` to `~/.summono` on first launch — existing runtime, source memory, and plugin seeds are kept.
 - **New app icon.** The Summono ghost on a black rounded tile, shipped as full icns/ico sets.
