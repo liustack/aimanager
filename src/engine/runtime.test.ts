@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { corepackCliPath, distName, pickLtsVersion, pinnedNodeSha256, type DistEntry } from './runtime'
 
@@ -40,11 +41,13 @@ describe('pinnedNodeSha256', () => {
 
 describe('corepackCliPath', () => {
   it('uses the unix tarball layout and the windows zip layout', () => {
+    // Expected values are built with join so the assertion holds on hosts
+    // whose path separator is a backslash (the CI Windows runner).
     expect(corepackCliPath('/rt/v24.19.0', 'darwin')).toBe(
-      '/rt/v24.19.0/lib/node_modules/corepack/dist/corepack.js'
+      join('/rt/v24.19.0', 'lib', 'node_modules', 'corepack', 'dist', 'corepack.js')
     )
     expect(corepackCliPath('/rt/v24.19.0', 'win32')).toBe(
-      '/rt/v24.19.0/node_modules/corepack/dist/corepack.js'
+      join('/rt/v24.19.0', 'node_modules', 'corepack', 'dist', 'corepack.js')
     )
   })
 })
