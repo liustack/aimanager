@@ -140,12 +140,12 @@ export default function App(): React.JSX.Element {
   const [dshApplyHint, setDshApplyHint] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!window.aimanager) {
+    if (!window.summono) {
       setEngineReady(false)
       return
     }
-    const offView = window.aimanager.onDshView(setDshLayer)
-    void window.aimanager
+    const offView = window.summono.onDshView(setDshLayer)
+    void window.summono
       .engineCall('status')
       .then((raw) => {
         const status = raw as EngineStatus
@@ -155,11 +155,11 @@ export default function App(): React.JSX.Element {
         if (status.dshRunning) setDsh({ phase: 'ready' })
       })
       .catch(() => setEngineReady(false))
-    void window.aimanager
+    void window.summono
       .engineCall('apps.list')
       .then((raw) => setApps(raw as DesktopApp[]))
       .catch(() => setApps([]))
-    const offEngine = window.aimanager.onEngineEvent(({ event, payload }) => {
+    const offEngine = window.summono.onEngineEvent(({ event, payload }) => {
       if (event === 'dsh.stage') {
         setDsh({ phase: 'working', stage: stageCopy[String(payload)] ?? '正在处理…' })
       }
@@ -194,7 +194,7 @@ export default function App(): React.JSX.Element {
     if (dshApplyingUpdate) return
     setDshApplyingUpdate(true)
     setDshApplyHint(null)
-    window.aimanager
+    window.summono
       .engineCall('dsh.applyUpdate')
       .then((raw) => {
         const result = raw as { applied?: boolean; pending?: string | null; message?: string }
@@ -209,7 +209,7 @@ export default function App(): React.JSX.Element {
 
   const openDsh = (): void => {
     setDsh({ phase: 'working', stage: '正在准备…' })
-    window.aimanager
+    window.summono
       .openDsh()
       .then(() => {
         setDsh({ phase: 'ready' })
@@ -223,15 +223,15 @@ export default function App(): React.JSX.Element {
   const installOrOpen = (app: DesktopApp): void => {
     const state = appStates[app.id] ?? { phase: 'idle' }
     if (app.installed || state.phase === 'ready') {
-      void window.aimanager.engineCall('apps.launch', { id: app.id })
+      void window.summono.engineCall('apps.launch', { id: app.id })
       return
     }
     setAppStates((prev) => ({ ...prev, [app.id]: { phase: 'working', stage: '正在准备…' } }))
-    window.aimanager
+    window.summono
       .engineCall('apps.install', { id: app.id })
       .then(() => {
         setAppStates((prev) => ({ ...prev, [app.id]: { phase: 'ready' } }))
-        void window.aimanager.engineCall('apps.launch', { id: app.id })
+        void window.summono.engineCall('apps.launch', { id: app.id })
       })
       .catch((err: unknown) => {
         setAppStates((prev) => ({
@@ -282,7 +282,7 @@ export default function App(): React.JSX.Element {
           className="strip-more"
           aria-label="回到启动台"
           title="回到启动台"
-          onClick={() => void window.aimanager.dshBack()}
+          onClick={() => void window.summono.dshBack()}
         >
           {/* Launchpad glyph: the classic 3×3 dot grid. */}
           <svg viewBox="0 0 24 24" fill="currentColor">

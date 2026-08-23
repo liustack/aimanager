@@ -1,12 +1,12 @@
 {
-  "name": "aimanager",
+  "name": "summono",
   "version": "0.1.2",
   "private": true,
   "description": "One click and DeepSeek Harness is running — the launcher and installer for AI harnesses",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/liustack/aimanager.git"
+    "url": "https://github.com/liustack/summono.git"
   },
   "type": "module",
   "main": "./out/main/index.js",

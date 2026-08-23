@@ -20,7 +20,7 @@ import {
 } from './sources'
 
 // Pin the source memory empty so tests never depend on the developer's real
-// ~/.aimanager/source-memory.json.
+// ~/.summono/source-memory.json.
 beforeEach(() => {
   primeSourceMemory({})
 })
@@ -44,17 +44,17 @@ describe('resolveUrls', () => {
     expect(resolveUrls('node-dist', '/index.json')[0]).toBe('https://nodejs.org/dist/index.json')
   })
 
-  it('replaces only the official origin when AIMANAGER_OFFICIAL_BASE is set', () => {
-    const prev = process.env.AIMANAGER_OFFICIAL_BASE
-    process.env.AIMANAGER_OFFICIAL_BASE = 'https://example.invalid'
+  it('replaces only the official origin when SUMMONO_OFFICIAL_BASE is set', () => {
+    const prev = process.env.SUMMONO_OFFICIAL_BASE
+    process.env.SUMMONO_OFFICIAL_BASE = 'https://example.invalid'
     try {
       expect(resolveUrls('node-dist', 'v1/a.tar.gz')).toEqual([
         'https://example.invalid/v1/a.tar.gz',
         'https://registry.npmmirror.com/-/binary/node/v1/a.tar.gz'
       ])
     } finally {
-      if (prev === undefined) delete process.env.AIMANAGER_OFFICIAL_BASE
-      else process.env.AIMANAGER_OFFICIAL_BASE = prev
+      if (prev === undefined) delete process.env.SUMMONO_OFFICIAL_BASE
+      else process.env.SUMMONO_OFFICIAL_BASE = prev
     }
   })
 })

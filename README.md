@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/liustack/aimanager/main/assets/banner.jpg" width="100%" alt="AIManager" />
+  <img src="https://raw.githubusercontent.com/liustack/summono/main/assets/banner.jpg" width="100%" alt="Summono" />
 </p>
 
-<h1 align="center">AIManager</h1>
+<h1 align="center">Summono</h1>
 
 <p align="center"><b>Install and launch DeepSeek Harness in one click.</b></p>
 
@@ -24,21 +24,21 @@
   <img src="https://img.shields.io/badge/users-unknown-lightgrey?style=flat-square" alt="Users unknown">
 </p>
 
-DeepSeek Harness (dsh) has no desktop app of its own and installs through a terminal. AIManager gives it one. **Click the whale, and dsh is installed, running, and ready to chat** — no terminal, no commands, no setup. Claude Desktop and the Codex (ChatGPT) app launch from the same screen.
+DeepSeek Harness (dsh) has no desktop app of its own and installs through a terminal. Summono gives it one. **Click the whale, and dsh is installed, running, and ready to chat** — no terminal, no commands, no setup. Claude Desktop and the Codex (ChatGPT) app launch from the same screen.
 
 ## Screenshots
 
 The launchpad — one click on any icon:
 
-<img src="assets/screenshot-launchpad.png" width="100%" alt="AIManager launchpad" />
+<img src="assets/screenshot-launchpad.png" width="100%" alt="Summono launchpad" />
 
-DeepSeek Harness running inside AIManager:
+DeepSeek Harness running inside Summono:
 
-<img src="assets/screenshot-dsh.png" width="100%" alt="DeepSeek Harness running inside AIManager" />
+<img src="assets/screenshot-dsh.png" width="100%" alt="DeepSeek Harness running inside Summono" />
 
 ## Talk to us
 
-Issues are welcome any time: [open one](https://github.com/liustack/aimanager/issues/new), in English or Chinese. And come find me on X: **[@liustack](https://x.com/liustack)** — which harness should get one-click support next, what broke, what should come next. New releases land there first.
+Issues are welcome any time: [open one](https://github.com/liustack/summono/issues/new), in English or Chinese. And come find me on X: **[@liustack](https://x.com/liustack)** — which harness should get one-click support next, what broke, what should come next. New releases land there first.
 
 ## Highlights
 
@@ -49,7 +49,7 @@ Issues are welcome any time: [open one](https://github.com/liustack/aimanager/is
 
 ## Install
 
-Download from [Releases](https://github.com/liustack/aimanager/releases): `.dmg` for Mac, `.exe` for Windows.
+Download from [Releases](https://github.com/liustack/summono/releases): `.dmg` for Mac, `.exe` for Windows.
 
 Mac builds are Developer ID signed and notarized by Apple — download, drag to Applications, double-click, done.
 
@@ -66,9 +66,9 @@ pnpm dev
 
 ## Contributing
 
-AIManager does not accept pull requests. The project is maintained by a single author who reviews every line, which is a deliberate choice for reliability. Two effective ways to contribute:
+Summono does not accept pull requests. The project is maintained by a single author who reviews every line, which is a deliberate choice for reliability. Two effective ways to contribute:
 
-- **[Open an issue](https://github.com/liustack/aimanager/issues).** Bugs, suggestions, confusing errors, unclear docs. Issues are read and shape what gets built next.
+- **[Open an issue](https://github.com/liustack/summono/issues).** Bugs, suggestions, confusing errors, unclear docs. Issues are read and shape what gets built next.
 - **Fork it.** Under MIT your copy is fully yours to modify and publish.
 
 Details, including how the code is organized, in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -81,7 +81,7 @@ This project runs on LIUSTACK Skills: `shaping` before you build, `coding` while
 npx -y skills add liustack/vibemaster -g
 ```
 
-⭐ If it helps, star [AIManager](https://github.com/liustack/aimanager) and [VibeMaster](https://github.com/liustack/vibemaster). Stars are how the next developer finds them.
+⭐ If it helps, star [Summono](https://github.com/liustack/summono) and [VibeMaster](https://github.com/liustack/vibemaster). Stars are how the next developer finds them.
 
 ## Key ecosystem partners
 
@@ -94,17 +94,17 @@ The projects worth recommending in the DeepSeek Harness ecosystem.
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=liustack%2Faimanager&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=liustack%2Fsummono&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=liustack/aimanager&type=date&theme=dark&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=liustack/aimanager&type=date&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=liustack/aimanager&type=date&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=liustack/summono&type=date&theme=dark&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=liustack/summono&type=date&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=liustack/summono&type=date&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
  </picture>
 </a>
 
 ## Disclaimer
 
-Provided as-is under the MIT License below. The author makes no warranty and gives no endorsement for any particular use. The AI apps and runtimes that AIManager installs (DeepSeek Harness, Node.js, Claude Desktop, the Codex app, and others) belong to their vendors and are governed by their own terms, which you are responsible for.
+Provided as-is under the MIT License below. The author makes no warranty and gives no endorsement for any particular use. The AI apps and runtimes that Summono installs (DeepSeek Harness, Node.js, Claude Desktop, the Codex app, and others) belong to their vendors and are governed by their own terms, which you are responsible for.
 
 ## License
 

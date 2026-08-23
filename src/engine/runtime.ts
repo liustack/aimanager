@@ -1,4 +1,4 @@
-// Runtime domain: provisions an invisible Node.js into aimanager's private
+// Runtime domain: provisions an invisible Node.js into Summono's private
 // directory. The user never learns Node exists.
 //
 // Platform notes: official Node distributions differ per OS — unix tarballs
@@ -7,6 +7,7 @@
 // that is absorbed here; other domains only see NodeRuntime.
 
 import { spawn } from 'node:child_process'
+import { existsSync, renameSync } from 'node:fs'
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
@@ -14,12 +15,28 @@ import { download, resolveUrls } from './sources'
 
 const isWindows = process.platform === 'win32'
 
-export const baseDir = join(homedir(), '.aimanager')
+export const baseDir = join(homedir(), '.summono')
+
+// One-time migration from the pre-rename state dir (the app shipped as
+// "aimanager" through v0.1.2). A same-volume rename keeps existing installs'
+// runtime, source memory, and plugin seed markers. Runs at module load so
+// nothing can touch baseDir first.
+const legacyBaseDir = join(homedir(), '.aimanager')
+if (existsSync(legacyBaseDir) && !existsSync(baseDir)) {
+  try {
+    renameSync(legacyBaseDir, baseDir)
+  } catch (err) {
+    // Filesystem boundary: a failed rename degrades to a fresh state dir
+    // (runtime re-downloads on demand); never block engine boot on it.
+    console.warn('[runtime] legacy state dir migration failed:', err)
+  }
+}
+
 const nodeDir = join(baseDir, 'runtime', 'node')
 
 export interface NodeRuntime {
   version: string
-  /** Extracted distribution root, e.g. ~/.aimanager/runtime/node/v24.19.0 */
+  /** Extracted distribution root, e.g. ~/.summono/runtime/node/v24.19.0 */
   dir: string
   /** Directory containing the node executable */
   binDir: string

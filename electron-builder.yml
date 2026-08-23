@@ -1,7 +1,7 @@
 # Packaging for release artifacts. Everything ships pre-bundled from
 # electron-vite's out/, so no node_modules go into the app.
-appId: com.liustack.aimanager
-productName: AIManager
+appId: com.liustack.summono
+productName: Summono
 directories:
   buildResources: build
   output: dist

@@ -50,9 +50,9 @@ function stripSlash(url: string): string {
 }
 
 function officialBase(artifact: ArtifactId): string {
-  // AIMANAGER_OFFICIAL_BASE is a verification hook (force the official origin
+  // SUMMONO_OFFICIAL_BASE is a verification hook (force the official origin
   // to a dead host and confirm we land on the mirror). Not a user setting.
-  const override = process.env.AIMANAGER_OFFICIAL_BASE
+  const override = process.env.SUMMONO_OFFICIAL_BASE
   if (override) return stripSlash(override)
   return ARTIFACT_SOURCES[artifact].official
 }
@@ -89,7 +89,9 @@ export function updatedWin(
   return { winner: base, wonAt: now }
 }
 
-const memoryFile = join(homedir(), '.aimanager', 'source-memory.json')
+// Mirrors baseDir in runtime.ts (kept as a plain join to avoid an import
+// cycle: runtime.ts already imports this module for download()).
+const memoryFile = join(homedir(), '.summono', 'source-memory.json')
 let memoryState: Partial<Record<ArtifactId, SourceWin>> | null = null
 
 /** Test isolation hook: pin the in-memory state (or null to reload from disk). */
@@ -117,7 +119,7 @@ function loadMemory(): Partial<Record<ArtifactId, SourceWin>> {
 
 export function recordSourceWin(artifact: ArtifactId, base: string): void {
   // The override is a verification hook; don't let test runs poison memory.
-  if (process.env.AIMANAGER_OFFICIAL_BASE) return
+  if (process.env.SUMMONO_OFFICIAL_BASE) return
   const memo = loadMemory()
   const next = updatedWin(memo[artifact], stripSlash(base), stripSlash(officialBase(artifact)), Date.now())
   if (next === memo[artifact]) return

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/liustack/aimanager/main/assets/banner.jpg" width="100%" alt="AIManager" />
+  <img src="https://raw.githubusercontent.com/liustack/summono/main/assets/banner.jpg" width="100%" alt="Summono" />
 </p>
 
-<h1 align="center">AIManager</h1>
+<h1 align="center">Summono</h1>
 
 <p align="center"><b>一键安装启动 DeepSeek Harness。</b></p>
 
@@ -24,21 +24,21 @@
   <img src="https://img.shields.io/badge/users-unknown-lightgrey?style=flat-square" alt="Users unknown">
 </p>
 
-DeepSeek Harness(dsh)没有自己的桌面应用,安装要走终端。AIManager 给它补上一个。**点一下鲸鱼,dsh 装好、跑起来、直接开聊**——零终端、零命令、零设置。Claude Desktop 和 Codex(ChatGPT)应用也从同一屏启动。
+DeepSeek Harness(dsh)没有自己的桌面应用,安装要走终端。Summono 给它补上一个。**点一下鲸鱼,dsh 装好、跑起来、直接开聊**——零终端、零命令、零设置。Claude Desktop 和 Codex(ChatGPT)应用也从同一屏启动。
 
 ## 实测截图
 
 启动台——任意图标一键直达:
 
-<img src="assets/screenshot-launchpad.png" width="100%" alt="AIManager 启动台" />
+<img src="assets/screenshot-launchpad.png" width="100%" alt="Summono 启动台" />
 
-DeepSeek Harness 在 AIManager 里运行:
+DeepSeek Harness 在 Summono 里运行:
 
-<img src="assets/screenshot-dsh.png" width="100%" alt="DeepSeek Harness 在 AIManager 内运行" />
+<img src="assets/screenshot-dsh.png" width="100%" alt="DeepSeek Harness 在 Summono 内运行" />
 
 ## 交流
 
-欢迎随时提 [issue](https://github.com/liustack/aimanager/issues/new),中英文都行。也欢迎来 X 上聊:**[@liustack](https://x.com/liustack)**——下一个该一键支持哪个 harness、哪里坏了、接下来该做什么,新版本也是那边先发。
+欢迎随时提 [issue](https://github.com/liustack/summono/issues/new),中英文都行。也欢迎来 X 上聊:**[@liustack](https://x.com/liustack)**——下一个该一键支持哪个 harness、哪里坏了、接下来该做什么,新版本也是那边先发。
 
 ## 亮点
 
@@ -49,7 +49,7 @@ DeepSeek Harness 在 AIManager 里运行:
 
 ## 安装
 
-去 [Releases](https://github.com/liustack/aimanager/releases) 下载:Mac 选 `.dmg`,Windows 选 `.exe`。
+去 [Releases](https://github.com/liustack/summono/releases) 下载:Mac 选 `.dmg`,Windows 选 `.exe`。
 
 Mac 安装包已通过 Apple 官方签名与公证——下载、拖进「应用程序」、双击打开,没有任何弹窗拦路。
 
@@ -66,9 +66,9 @@ pnpm dev
 
 ## 参与方式
 
-aimanager 不接受 pull request。项目由单一作者维护、逐行审阅,这是为可靠性做的刻意选择。两种真正有效的参与方式:
+Summono 不接受 pull request。项目由单一作者维护、逐行审阅,这是为可靠性做的刻意选择。两种真正有效的参与方式:
 
-- **[提 issue](https://github.com/liustack/aimanager/issues)。** bug、建议、看不懂的报错、写得不清楚的文档。issue 都会被认真读,并决定接下来做什么。
+- **[提 issue](https://github.com/liustack/summono/issues)。** bug、建议、看不懂的报错、写得不清楚的文档。issue 都会被认真读,并决定接下来做什么。
 - **Fork。** MIT 协议下你的副本完全属于你,随意修改、随意发布。
 
 细节(包括代码怎么组织)见 [CONTRIBUTING.md](CONTRIBUTING.md)。
@@ -81,7 +81,7 @@ aimanager 不接受 pull request。项目由单一作者维护、逐行审阅,�
 npx -y skills add liustack/vibemaster -g
 ```
 
-⭐ 如果对你有帮助,给 [aimanager](https://github.com/liustack/aimanager) 和 [VibeMaster](https://github.com/liustack/vibemaster) 点个 star。star 是下一个开发者找到它们的方式。
+⭐ 如果对你有帮助,给 [Summono](https://github.com/liustack/summono) 和 [VibeMaster](https://github.com/liustack/vibemaster) 点个 star。star 是下一个开发者找到它们的方式。
 
 ## 生态伙伴
 
@@ -92,16 +92,16 @@ DeepSeek Harness 生态里值得推荐的项目。
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=liustack%2Faimanager&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=liustack%2Fsummono&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=liustack/aimanager&type=date&theme=dark&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=liustack/aimanager&type=date&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=liustack/summono&type=date&theme=dark&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=liustack/summono&type=date&legend=top-left&sealed_token=J8Ty12u3tzeBqJYzwA1DXO8ggEERZWc42zz9Nlr1ZjWrKzZnyaELmthABUwMc4LKHcqZ1Lq76LX-elmCQgUf2IAhlo2DkhKD_qhb5_yBAc_yWMi6D_mp0g" />
  </picture>
 </a>
 
 ## 免责声明
 
-本项目按下方 MIT 协议原样提供,作者不作任何担保,也不为任何特定用途背书。aimanager 所安装的 AI 应用与运行时(DeepSeek Harness、Node.js、Claude Desktop、Codex 应用等)归各自厂商所有,受其各自条款约束,由你自行负责。
+本项目按下方 MIT 协议原样提供,作者不作任何担保,也不为任何特定用途背书。Summono 所安装的 AI 应用与运行时(DeepSeek Harness、Node.js、Claude Desktop、Codex 应用等)归各自厂商所有,受其各自条款约束,由你自行负责。
 
 ## 协议
 

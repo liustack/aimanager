@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **AIManager is now Summono.** New name, new mascot: a little white ghost you summon agents with. The GitHub repo moved to `liustack/summono` (old links redirect), the app identity and window title changed accordingly, and the private state directory migrates automatically from `~/.aimanager` to `~/.summono` on first launch — existing runtime, source memory, and plugin seeds are kept.
+- **New app icon.** The Summono ghost on a black rounded tile, shipped as full icns/ico sets.
+
 ## 0.1.2 - 2026-08-20
 
 - **Mac builds are now Developer ID signed and notarized by Apple.** No more Gatekeeper prompts or `xattr` workarounds — download, open, done. (Release builds run with hardened runtime enabled.)
